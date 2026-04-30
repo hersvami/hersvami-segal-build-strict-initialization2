@@ -1,62 +1,66 @@
-/* ─── Segal Build — Create Scope From Category ──────────────────────────────── */
+import { Variation, Scope, TradeScope, BoQItem, TradeCategory } from '../types';
+import { getTradeTemplate } from './tradeTemplates';
+import { getRememberedRate } from './rateMemory';
 
-import { getCategoryById } from '../../utils/categories/extended';
-import type { ProjectBaseline, QuoteScope, ParametricItem } from '../../types/domain';
-import { generateId } from '../../utils/helpers';
-import type { TradeAnalysis } from './scopePricing';
-import { getDefaultBaseline } from './builderShared';
-import { getTemplateDescription, isManualTemplateCategory, syncScopePricing } from './scopePricing';
+/**
+ * Creates a new trade scope from a category, applying templates, 
+ * baseline quantities, and remembered rates.
+ */
+export const createScopeFromCategory = (
+  variation: Variation,
+  category: TradeCategory
+): TradeScope => {
+  const template = getTradeTemplate(category.id);
+  
+  // 1. Calculate Baseline Quantities
+  // FIX: Default to 10m² if no baseline dimensions exist to prevent $0 costs
+  const length = variation.baseline?.dimensions?.length || 0;
+  const width = variation.baseline?.dimensions?.width || 0;
+  const baselineArea = length > 0 && width > 0 ? length * width : 10; 
+  
+  const baselineVolume = baselineArea * (variation.baseline?.dimensions?.height || 3); // Default height 3m
+  
+  // 2. Initialize Items from Template or Category Defaults
+  let items: BoQItem[] = [];
 
-export function createScopeFromCategory(
-  categoryId: string,
-  scopeInput?: string,
-  tradeAnalysis?: TradeAnalysis,
-  baseline: ProjectBaseline = getDefaultBaseline(),
-): QuoteScope | null {
-  const category = getCategoryById(categoryId);
-  if (!category) return null;
+  if (template && template.items) {
+    items = template.items.map(item => {
+      if (item.type === 'parametric') {
+        // Apply remembered rate if available
+        const rememberedRate = getRememberedRate(item.categoryId || '');
+        
+        return {
+          ...item,
+          quantity: baselineArea, // Apply calculated area
+          rate: rememberedRate ?? item.rate, // Use remembered rate or template rate
+          isRateOverridden: !!rememberedRate
+        };
+      }
+      return item;
+    });
+  } else {
+    // Fallback if no template exists
+    items = [{
+      id: Date.now().toString(),
+      type: 'parametric',
+      categoryId: category.id,
+      name: category.name,
+      unit: category.unit,
+      quantity: baselineArea,
+      rate: category.defaultRate || 0,
+      isRateOverridden: false
+    }];
+  }
 
-  const parametricItems: ParametricItem[] = (tradeAnalysis?.items || []).map((item) => ({
-    id: generateId(),
-    unitId: item.unitId,
-    label: item.label,
-    unit: item.unit as 'each' | 'lm' | 'm2' | 'allow',
-    rate: item.rate,
-    quantity: item.quantity,
-  }));
-
-  const isTemplate = isManualTemplateCategory(category.id);
-  const scope: QuoteScope = {
-    id: generateId(),
-    categoryId: category.id,
-    categoryLabel: category.label,
-    description: tradeAnalysis?.tradeScope || (isTemplate ? getTemplateDescription(category.label) : ''),
-    builderNotes: scopeInput || '',
-    dimensions: { width: 0, length: 0, height: baseline.ceilingHeightM || 2.4 },
-    stages: isManualTemplateCategory(category.id)
-      ? []
-      : (category.stages || []).map((stage) => ({
-          name: stage.name,
-          trade: stage.trade,
-          cost: stage.rate,
-          duration: stage.duration,
-          description: stage.description,
-          status: 'not-started' as const,
-        })),
-    inclusions: (category.inclusions || []).map((text) => ({
-      id: generateId(),
-      text,
-      isDefault: true,
-    })),
-    exclusions: (category.exclusions || []).map((text) => ({
-      id: generateId(),
-      text,
-      isDefault: true,
-    })),
-    pcItems: (category.pcItems || []).map((item) => ({ ...item, id: generateId() })),
-    parametricItems: isManualTemplateCategory(category.id) ? [] : parametricItems,
-    answers: {},
+  // 3. Construct the Scope
+  return {
+    id: Date.now().toString(),
+    type: 'trade',
+    tradeCategoryId: category.id,
+    name: category.name,
+    status: 'pending',
+    boqItems: items,
+    notes: '',
+    documents: []
   };
-
-  return syncScopePricing(scope, baseline);
-}
+};
