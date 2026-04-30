@@ -3,6 +3,7 @@ import { Plus, Trash2, Zap } from 'lucide-react';
 import type { ParametricItem } from '../../types/domain';
 import { getUnitsForCategory, getUnitById } from '../../utils/pricing/parametricUnits';
 import { generateId, formatCurrency } from '../../utils/helpers';
+import { applyRememberedRate, makeParametricUnitTargetId, saveRateOverride } from '../../utils/rateMemory';
 
 type Props = {
   categoryId: string;
@@ -21,12 +22,17 @@ export function ParametricEditor({ categoryId, items, onChange }: Props) {
   const addUnit = (unitId: string) => {
     const unit = getUnitById(unitId);
     if (!unit) return;
+    
+    // Check for remembered rate override
+    const targetId = makeParametricUnitTargetId(unit.id);
+    const { rate } = applyRememberedRate(targetId, unit.rate);
+    
     const newItem: ParametricItem = {
       id: generateId(),
       unitId: unit.id,
       label: unit.label,
       unit: unit.unit,
-      rate: unit.rate,
+      rate,
       quantity: unit.defaultQty ?? 1,
     };
     onChange([...items, newItem]);
@@ -38,6 +44,19 @@ export function ParametricEditor({ categoryId, items, onChange }: Props) {
   };
 
   const updateRate = (id: string, rate: number) => {
+    const item = items.find(it => it.id === id);
+    if (item) {
+      // Save rate override to memory when user manually changes rate
+      const targetId = makeParametricUnitTargetId(item.unitId);
+      saveRateOverride({
+        targetId,
+        targetType: 'parametric_unit',
+        rate,
+        unit: item.unit,
+        categoryId: item.unitId.split('-')[0],
+        note: `Manual override for ${item.label}`,
+      });
+    }
     onChange(items.map((it) => (it.id === id ? { ...it, rate: Math.max(0, rate) } : it)));
   };
 

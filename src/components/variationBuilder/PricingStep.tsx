@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { Pencil, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Pencil, X, Save } from 'lucide-react';
 import type { QuoteScope } from '../../types/domain';
 import { formatCurrency } from '../../utils/helpers';
 import { calcScopeTotal } from '../../utils/pricing/engine';
+import { saveRateOverride, makeParametricUnitTargetId, getRememberedRate, hasRememberedRate } from '../../utils/rateMemory';
 
 type Props = {
   scopes: QuoteScope[];
@@ -18,6 +19,22 @@ type Props = {
 export function PricingStep({ scopes, setScopes, ohPct, setOhPct, profitPct, setProfitPct, contingencyPct, setContingencyPct }: Props) {
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [draftNote, setDraftNote] = useState('');
+  // Track which parametric items have remembered rates applied
+  const [rememberedRates, setRememberedRates] = useState<Record<string, boolean>>({});
+
+  // Check for remembered rates on parametric items when component mounts or scopes change
+  useEffect(() => {
+    const newRemembered: Record<string, boolean> = {};
+    scopes.forEach((scope, scopeIdx) => {
+      (scope.parametricItems || []).forEach(item => {
+        const targetId = makeParametricUnitTargetId(item.unitId);
+        if (hasRememberedRate(targetId)) {
+          newRememberedRates[`param-${scopeIdx}-${item.id}`] = true;
+        }
+      });
+    });
+    setRememberedRates(newRemembered);
+  }, [scopes]);
 
   const updateStageCost = (scopeIdx: number, stageIdx: number, cost: number) => {
     const next = [...scopes];
@@ -38,6 +55,23 @@ export function PricingStep({ scopes, setScopes, ohPct, setOhPct, profitPct, set
   const updateParamRate = (scopeIdx: number, itemId: string, rate: number) => {
     const next = [...scopes];
     const items = [...(next[scopeIdx].parametricItems || [])];
+    const item = items.find(it => it.id === itemId);
+    
+    // Save rate override to memory when user manually changes parametric rate
+    if (item) {
+      const targetId = makeParametricUnitTargetId(item.unitId);
+      saveRateOverride({
+        targetId,
+        targetType: 'parametric_unit',
+        rate,
+        unit: item.unit,
+        categoryId: next[scopeIdx].categoryId,
+        note: `Manual override for ${item.label}`,
+      });
+      // Update the remembered rates state to show visual feedback
+      setRememberedRates(prev => ({ ...prev, [`param-${scopeIdx}-${itemId}`]: true }));
+    }
+    
     next[scopeIdx] = { ...next[scopeIdx], parametricItems: items.map((it) => it.id === itemId ? { ...it, rate } : it) };
     setScopes(next);
   };
@@ -133,6 +167,7 @@ export function PricingStep({ scopes, setScopes, ohPct, setOhPct, profitPct, set
                   <h5 className="text-xs font-semibold uppercase text-slate-400">BoQ Items</h5>
                   {paramItems.map((item) => {
                     const noteKey = `param-${si}-${item.id}`;
+                    const hasRemembered = rememberedRates[noteKey];
                     return (
                       <div key={item.id}>
                         <div className="flex items-center gap-3 text-sm">
@@ -140,10 +175,22 @@ export function PricingStep({ scopes, setScopes, ohPct, setOhPct, profitPct, set
                           <span className="text-xs text-slate-400">{item.unit}</span>
                           <div className="flex items-center gap-1">
                             <span className="text-xs text-slate-400">$</span>
-                            <input type="number" value={item.rate}
+                            <input 
+                              type="number" 
+                              value={item.rate}
                               onChange={(e) => updateParamRate(si, item.id, Number(e.target.value))}
-                              className="w-20 rounded border border-slate-200 px-2 py-1 text-right text-sm" />
+                              className={`w-20 rounded border px-2 py-1 text-right text-sm ${
+                                hasRemembered 
+                                  ? 'border-green-300 bg-green-50 text-green-700 font-medium' 
+                                  : 'border-slate-200'
+                              }`} 
+                            />
                           </div>
+                          {hasRemembered && (
+                            <span className="text-[10px] text-green-600 font-medium flex items-center gap-0.5" title="Rate from memory">
+                              <Save className="h-3 w-3" /> Saved
+                            </span>
+                          )}
                           <span className="text-xs text-slate-400">× {item.quantity}</span>
                           <span className="w-20 text-right text-sm font-medium">{formatCurrency(item.rate * item.quantity)}</span>
                           <button onClick={() => openNoteEditor(noteKey, item.notes)}
