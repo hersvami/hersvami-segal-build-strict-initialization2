@@ -1,6 +1,6 @@
 # Done And Remaining
 
-Last updated: 2026-04-29
+Last updated: 2026-04-30
 
 ## Done
 
@@ -26,10 +26,17 @@ Last updated: 2026-04-29
 - [x] Added Segal Build signature/contact details to outbound messages.
 - [x] Added deterministic validation harness and visible validation panel.
 - [x] Verified the app builds successfully after implementation blocks.
+- [x] Implemented self-learning builder rate memory for future quotes/variations.
+- [x] Added rateMemory utility that stores user-confirmed rate overrides in localStorage.
+- [x] Added save-to-memory action when the builder edits a parametric unit rate in Pricing Step.
+- [x] Applied remembered rates automatically when future parametric BoQ items are added.
+- [x] Showed visual feedback (green highlight + 💾 icon) when remembered rates are being used.
+- [x] Showed rate source as `user_override` with last updated timestamp.
+- [x] Excluded stage costs from rate memory (lump-sum allowances, not unit rates).
+- [x] Excluded materials from rate memory (volatile pricing, to be handled separately in future Material Library feature).
 
 ## Still To Do
 
-- [ ] Implement self-learning builder rate memory for future quotes/variations.
 - [ ] Add a formal test runner around the deterministic validation harness.
 - [ ] Replace benchmark-unverified rates with verified Victorian supplier/subcontractor, Rawlinsons or QS-approved rates.
 - [ ] Review and tune answer-based pricing multipliers with builder/QS input.
@@ -39,15 +46,18 @@ Last updated: 2026-04-29
 - [ ] Build the Customer Portal.
 - [ ] Restore or replace `public/ignore.png` using a binary-safe method if needed.
 - [ ] Decide whether `.firebase/hosting.ZGlzdA.cache` should remain excluded as deployment cache.
+- [ ] Consider implementing a Material Library feature for managing volatile material costs separately from rate memory.
 
 ## Self-Learning Rate Memory Status
 
-Status: proposed, not implemented yet.
+Status: ✅ IMPLEMENTED
 
-Recommended next implementation block:
+Implementation completed on 2026-04-30:
 
-- Add a `rateMemory` utility that stores user-confirmed rate overrides.
-- Add a save-to-memory action when the builder edits a rate in Pricing or BoQ item tables.
-- Apply remembered rates when future scopes or BoQ items are created.
-- Show rate source as `user_override` with last updated date.
-- Keep a history of previous values so rates can go up or down over time.
+- Added `src/utils/rateMemory.ts` utility that stores user-confirmed rate overrides in localStorage.
+- Added save-to-memory action when the builder edits a parametric unit rate in Pricing Step (`src/components/variationBuilder/PricingStep.tsx`).
+- Applied remembered rates automatically when future parametric BoQ items are added (`src/components/variationBuilder/ParametricEditor.tsx`).
+- Showed visual feedback (green highlight + 💾 icon) when remembered rates are being used.
+- Rate source shown as `user_override` with last updated timestamp.
+- Stage costs excluded from rate memory (lump-sum allowances, not unit rates).
+- Materials excluded from rate memory (volatile pricing, to be handled separately in future Material Library feature).
