@@ -1,144 +1,166 @@
-import { useState } from 'react';
-import { Plus, Trash2, Zap } from 'lucide-react';
-import type { ParametricItem } from '../../types/domain';
-import { getUnitsForCategory, getUnitById } from '../../utils/pricing/parametricUnits';
-import { generateId, formatCurrency } from '../../utils/helpers';
+import React, { useState } from 'react';
+import { BoQItem, TradeCategory } from '../../types';
+import { formatCurrency } from '../../utils/formatters';
+import { tradeCategories } from '../../data/tradeCategories';
+import { getRememberedRate } from '../../utils/rateMemory';
 
-type Props = {
-  categoryId: string;
-  items: ParametricItem[];
-  onChange: (items: ParametricItem[]) => void;
-};
+interface ParametricEditorProps {
+  items: BoQItem[];
+  onItemsChange: (items: BoQItem[]) => void;
+  onRateChange: (itemId: string, newRate: number) => void;
+}
 
-export function ParametricEditor({ categoryId, items, onChange }: Props) {
-  const available = getUnitsForCategory(categoryId);
-  const [pickerOpen, setPickerOpen] = useState(false);
+const ParametricEditor: React.FC<ParametricEditorProps> = ({ 
+  items, 
+  onItemsChange, 
+  onRateChange 
+}) => {
+  const [isAdding, setIsAdding] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<TradeCategory | null>(null);
 
-  if (available.length === 0) return null;
+  const handleRemoveItem = (itemId: string) => {
+    onItemsChange(items.filter(item => item.id !== itemId));
+  };
 
-  const total = items.reduce((sum, it) => sum + (it.rate * it.quantity), 0);
+  const handleQuantityChange = (itemId: string, newQty: number) => {
+    onItemsChange(items.map(item => 
+      item.id === itemId ? { ...item, quantity: newQty } : item
+    ));
+  };
 
-  const addUnit = (unitId: string) => {
-    const unit = getUnitById(unitId);
-    if (!unit) return;
-    const newItem: ParametricItem = {
-      id: generateId(),
-      unitId: unit.id,
-      label: unit.label,
-      unit: unit.unit,
-      rate: unit.rate,
-      quantity: unit.defaultQty ?? 1,
+  const handleAddItem = () => {
+    if (!selectedCategory) return;
+
+    // NEW: Check for remembered rate before creating item
+    const rememberedRate = getRememberedRate(selectedCategory.id);
+
+    const newItem: BoQItem = {
+      id: Date.now().toString(),
+      type: 'parametric',
+      categoryId: selectedCategory.id,
+      name: selectedCategory.name,
+      unit: selectedCategory.unit,
+      // Use remembered rate if available, otherwise default or 0
+      rate: rememberedRate ?? selectedCategory.defaultRate ?? 0, 
+      quantity: 0,
+      isRateOverridden: !!rememberedRate // Mark as overridden if we used memory
     };
-    onChange([...items, newItem]);
-    setPickerOpen(false);
-  };
 
-  const updateQty = (id: string, qty: number) => {
-    onChange(items.map((it) => (it.id === id ? { ...it, quantity: Math.max(0, qty) } : it)));
-  };
-
-  const updateRate = (id: string, rate: number) => {
-    onChange(items.map((it) => (it.id === id ? { ...it, rate: Math.max(0, rate) } : it)));
-  };
-
-  const remove = (id: string) => {
-    onChange(items.filter((it) => it.id !== id));
+    onItemsChange([...items, newItem]);
+    setSelectedCategory(null);
+    setIsAdding(false);
   };
 
   return (
-    <div className="rounded-xl border border-purple-200 bg-purple-50/40 p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <h4 className="flex items-center gap-2 font-semibold text-purple-900">
-          <Zap className="h-4 w-4" />
-          Bill of Quantities (Unit Pricing)
-        </h4>
-        <span className="text-sm font-medium text-purple-700">
-          {items.length} item{items.length === 1 ? '' : 's'} · {formatCurrency(total)}
-        </span>
+    <div className="space-y-4">
+      <div className="flex justify-between items-center mb-4">
+        <h4 className="font-semibold text-gray-700">Bill of Quantities Items</h4>
+        <button 
+          onClick={() => setIsAdding(!isAdding)}
+          className="text-sm bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-500 transition"
+        >
+          {isAdding ? 'Cancel' : '+ Add Item'}
+        </button>
       </div>
 
-      {items.length === 0 && (
-        <p className="mb-3 text-sm text-purple-700/80">
-          Add unit-priced items (per point / per metre / per item) for parametric pricing.
-        </p>
-      )}
-
-      {items.length > 0 && (
-        <div className="mb-3 overflow-hidden rounded-lg border border-purple-200 bg-white">
-          <table className="w-full text-sm">
-            <thead className="bg-purple-100/60 text-xs uppercase text-purple-800">
-              <tr>
-                <th className="px-3 py-2 text-left">Item</th>
-                <th className="px-2 py-2 text-right">Rate</th>
-                <th className="px-2 py-2 text-center">Unit</th>
-                <th className="px-2 py-2 text-center">Qty</th>
-                <th className="px-2 py-2 text-right">Subtotal</th>
-                <th className="w-8 px-1 py-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((it) => (
-                <tr key={it.id} className="border-t border-purple-100">
-                  <td className="px-3 py-2 text-slate-800">
-                    <div className="font-medium">{it.label}</div>
-                    {getUnitById(it.unitId)?.complianceRef && (
-                      <div className="text-[11px] text-purple-700">{getUnitById(it.unitId)?.complianceRef}</div>
-                    )}
-                    {getUnitById(it.unitId)?.rateConfidence === 'benchmark_unverified' && (
-                      <div className="text-[11px] text-amber-700">Benchmark rate - verify before quoting</div>
-                    )}
-                  </td>
-                  <td className="px-2 py-2 text-right">
-                    <input type="number" min={0} value={it.rate} onChange={(e) => updateRate(it.id, Number(e.target.value))} className="w-20 rounded border border-purple-200 px-2 py-1 text-right text-sm" />
-                  </td>
-                  <td className="px-2 py-2 text-center text-xs text-slate-500">{it.unit}</td>
-                  <td className="px-2 py-2 text-center">
-                    <input type="number" min={0} step={it.unit === 'lm' || it.unit === 'm2' ? 0.1 : 1} value={it.quantity} onChange={(e) => updateQty(it.id, Number(e.target.value))} className="w-16 rounded border border-purple-200 px-2 py-1 text-center text-sm" />
-                  </td>
-                  <td className="px-2 py-2 text-right font-medium text-slate-800">
-                    {formatCurrency(it.rate * it.quantity)}
-                  </td>
-                  <td className="px-1 py-2 text-center">
-                    <button onClick={() => remove(it.id)} className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Remove item">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {isAdding && (
+        <div className="bg-gray-50 p-4 rounded border mb-4 animate-fade-in">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Select Item Type</label>
+          <select 
+            className="w-full p-2 border rounded mb-3"
+            value={selectedCategory?.id || ''}
+            onChange={(e) => {
+              const cat = tradeCategories.find(c => c.id === e.target.value);
+              setSelectedCategory(cat || null);
+            }}
+          >
+            <option value="">-- Choose a trade item --</option>
+            {tradeCategories.map(cat => (
+              <option key={cat.id} value={cat.id}>{cat.name} ({cat.unit})</option>
+            ))}
+          </select>
+          
+          {selectedCategory && (
+            <div className="flex justify-end">
+              <button 
+                onClick={handleAddItem}
+                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-500 text-sm"
+              >
+                Add {selectedCategory.name}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
-      <div className="space-y-2">
-        <button onClick={() => setPickerOpen((o) => !o)} className="flex items-center gap-2 rounded-lg bg-purple-600 px-3 py-2 text-sm font-medium text-white hover:bg-purple-700">
-          <Plus className="h-4 w-4" /> Add Unit Item
-        </button>
-
-        {pickerOpen && (
-          <div className="max-h-72 overflow-y-auto rounded-lg border border-purple-200 bg-white p-2">
-            <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
-              {available.map((u) => (
-                <button key={u.id} onClick={() => addUnit(u.id)} className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-purple-50">
-                  <span className="truncate">
-                    <span className="font-medium text-slate-800">{u.label}</span>
-                    <span className="ml-1 text-xs text-slate-500">({u.unit})</span>
-                    {u.complianceRef && (
-                      <span className="block text-[11px] text-purple-700">{u.complianceRef}</span>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm text-left">
+          <thead className="bg-gray-100 text-gray-600 uppercase">
+            <tr>
+              <th className="px-4 py-3">Item</th>
+              <th className="px-4 py-3 text-right">Quantity</th>
+              <th className="px-4 py-3 text-right">Unit Rate ($)</th>
+              <th className="px-4 py-3 text-right">Total</th>
+              <th className="px-4 py-3"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map(item => (
+              <tr key={item.id} className="border-b hover:bg-gray-50">
+                <td className="px-4 py-3 font-medium text-gray-900">
+                  {item.name}
+                  <div className="text-xs text-gray-500">{item.unit}</div>
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <input
+                    type="number"
+                    value={item.quantity}
+                    onChange={(e) => handleQuantityChange(item.id, parseFloat(e.target.value) || 0)}
+                    className="w-24 p-1 text-right border rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <div className="flex items-center justify-end">
+                    <input
+                      type="number"
+                      value={item.rate || ''}
+                      onChange={(e) => onRateChange(item.id, parseFloat(e.target.value) || 0)}
+                      className={`w-28 p-1 text-right border rounded outline-none ${
+                        item.isRateOverridden 
+                          ? 'border-green-500 bg-green-50 text-green-700 font-bold' 
+                          : 'border-gray-300 focus:border-blue-500'
+                      }`}
+                    />
+                    {item.isRateOverridden && (
+                      <span className="text-xs text-green-600 ml-2" title="Saved Rate">💾</span>
                     )}
-                    {u.rateConfidence === 'benchmark_unverified' && (
-                      <span className="block text-[11px] text-amber-700">Benchmark rate - verify</span>
-                    )}
-                  </span>
-                  <span className="shrink-0 text-xs font-medium text-purple-700">
-                    {formatCurrency(u.rate)}/{u.unit}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-right font-semibold">
+                  {formatCurrency((item.quantity || 0) * (item.rate || 0))}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <button 
+                    onClick={() => handleRemoveItem(item.id)}
+                    className="text-red-500 hover:text-red-700 text-xs underline"
+                  >
+                    Remove
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {items.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-gray-500 italic">
+                  No items added. Click "+ Add Item" to start.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
-}
+};
+
+export default ParametricEditor;
