@@ -1,8 +1,12 @@
 # Segal Build Current Handover
 
-Last updated: 2026-04-29
+Last updated: 2026-04-30
 
 This is the clean handover index for the current sandbox restoration and refactor session. The old repo handover set is intentionally not restored because the user asked for a simpler handover.
+
+## Latest Update: Rate Memory Feature Complete ✅
+
+The self-learning rate memory feature has been fully implemented with visual feedback, smart exclusions (stage costs and materials), and automatic application to new parametric BoQ items. See `handover/current/05-done-and-remaining.md` for full details.
 
 ## Read These Files
 

@@ -1,12 +1,20 @@
 # Current Status
 
-Last updated: 2026-04-29
+Last updated: 2026-04-30
 
 ## Restoration Summary
 
 The app source was restored from the GitHub repo plus user-provided full contents for files that exceeded API output limits.
 
 The application has built successfully multiple times using the required build tool.
+
+## Latest Feature: Self-Learning Rate Memory
+
+Completed on 2026-04-30:
+- Implemented rate memory system that learns from user adjustments
+- Automatically applies remembered rates to new parametric BoQ items
+- Visual feedback (green highlight + 💾 icon) when using remembered rates
+- Stage costs and materials intentionally excluded (see handover/current/05-done-and-remaining.md)
 
 ## Known Missing Or Intentionally Unsynced
 
