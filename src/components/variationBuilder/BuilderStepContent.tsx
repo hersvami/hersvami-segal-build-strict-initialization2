@@ -3,7 +3,7 @@ import type { TradeAnalysis } from '../../utils/ai/tradeAnalyser';
 import { BaselineStep } from './BaselineStep';
 import { ScopeStep } from './ScopeStep';
 import { ScopeDetailEditor } from './Editors';
-import { PricingStep } from './PricingStep';
+import PricingStep from './PricingStep';
 import { ReviewStep } from './ReviewStep';
 import type { Step } from './builderShared';
 

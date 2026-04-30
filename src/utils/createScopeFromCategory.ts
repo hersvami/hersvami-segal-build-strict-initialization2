@@ -1,5 +1,5 @@
 import { Variation, Scope, TradeScope, BoQItem, TradeCategory } from '../types';
-import { getTradeTemplate } from './tradeTemplates';
+import { tradeCategories } from '../../utils/tradeCategories';
 import { getRememberedRate } from './rateMemory';
 
 /**

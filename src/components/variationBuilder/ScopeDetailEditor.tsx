@@ -7,7 +7,7 @@ import { hasParametricUnits } from '../../utils/pricing/parametricUnits';
 import { formatCurrency } from '../../utils/helpers';
 import { CategoryQuestions } from './CategoryQuestions';
 import { EditableList } from './EditableList';
-import { ParametricEditor } from './ParametricEditor';
+import ParametricEditor from './ParametricEditor';
 import { PhaseBoqPanel } from './PhaseBoqPanel';
 import { ScopeDimensions } from './ScopeDimensions';
 import { StageListEditor } from './StageListEditor';

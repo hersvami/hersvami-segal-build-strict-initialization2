@@ -9,7 +9,7 @@ import { polishScopeWithAI } from '../../utils/services';
 import { buildVariationPayload } from './buildVariationPayload';
 import { clearBuilderDraft, loadBuilderDraft, saveBuilderDraft } from './builderDraft';
 import { GEMINI_KEY_STORAGE, getDefaultBaseline, groupCategories, readGeminiKey, type Step } from './builderShared';
-import { createScopeFromCategory } from './createScopeFromCategory';
+import { createScopeFromCategory } from '../../utils/createScopeFromCategory';
 import { syncScopePricing } from './scopePricing';
 
 type Args = { project: Project; documentType: 'quote' | 'variation'; existingQuotes: Variation[]; companyOH: number; companyProfit: number; onSave: (variation: Variation) => void };

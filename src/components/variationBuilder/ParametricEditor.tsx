@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { BoQItem, TradeCategory } from '../../types';
 import { formatCurrency } from '../../utils/formatters';
-import { tradeCategories } from '../../data/tradeCategories';
+import { tradeCategories } from '../../utils/tradeCategories';
 import { getRememberedRate } from '../../utils/rateMemory';
 
 interface ParametricEditorProps {
@@ -31,7 +31,6 @@ const ParametricEditor: React.FC<ParametricEditorProps> = ({
   const handleAddItem = () => {
     if (!selectedCategory) return;
 
-    // NEW: Check for remembered rate before creating item
     const rememberedRate = getRememberedRate(selectedCategory.id);
 
     const newItem: BoQItem = {
@@ -40,10 +39,9 @@ const ParametricEditor: React.FC<ParametricEditorProps> = ({
       categoryId: selectedCategory.id,
       name: selectedCategory.name,
       unit: selectedCategory.unit,
-      // Use remembered rate if available, otherwise default or 0
       rate: rememberedRate ?? selectedCategory.defaultRate ?? 0, 
       quantity: 0,
-      isRateOverridden: !!rememberedRate // Mark as overridden if we used memory
+      isRateOverridden: !!rememberedRate
     };
 
     onItemsChange([...items, newItem]);
