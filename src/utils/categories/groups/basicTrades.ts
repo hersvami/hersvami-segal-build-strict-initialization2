@@ -1,0 +1,26 @@
+import { cat, catX, type WorkCategory } from '../types';
+
+export const BASIC_TRADE_CATEGORIES: WorkCategory[] = [
+  cat('flooring', '🪵 Flooring', 'flooring', 'wet',
+    [{ id: 'type', label: 'Floor type', type: 'select', options: ['Timber', 'Tiles', 'Carpet', 'Vinyl', 'Polished Concrete'] }, { id: 'area', label: 'Area', type: 'select', options: ['Single room', 'Multiple rooms', 'Whole house'] }],
+    [{ name: 'Subfloor Preparation', trade: 'Carpentry', rate: 55, unit: 'area', duration: 1, description: 'Level and prepare subfloor' }, { name: 'Floor Installation', trade: 'Flooring', rate: 85, unit: 'area', duration: 3, description: 'Supply & install flooring' }, { name: 'Skirting & Trim', trade: 'Carpentry', rate: 25, unit: 'linear', duration: 1, description: 'Install skirting boards' }],
+    [{ description: 'Flooring Material', allowance: 90, unit: '$/m²' }],
+    ['Subfloor preparation', 'Quality flooring installation', 'Skirting and trim'],
+    ['Furniture moving', 'Subfloor levelling compound', 'Door trimming'],
+    [{ categoryId: 'painting', type: 'suggested' }]),
+  cat('painting', '🎨 Painting', 'painting', 'trades',
+    [{ id: 'type', label: 'Type', type: 'select', options: ['Interior', 'Exterior', 'Both'] }, { id: 'prep', label: 'Preparation', type: 'select', options: ['Minimal prep', 'Standard prep', 'Full prep & patching'] }],
+    [{ name: 'Preparation', trade: 'Painting', rate: 12, unit: 'area', duration: 1, description: 'Sand, fill, prime' }, { name: 'First Coat', trade: 'Painting', rate: 18, unit: 'area', duration: 1, description: 'Apply first coat' }, { name: 'Second Coat', trade: 'Painting', rate: 18, unit: 'area', duration: 1, description: 'Apply second coat' }],
+    [{ description: 'Paint Supply', allowance: 35, unit: '$/L' }],
+    ['All preparation', 'Two-coat finish', 'Clean up and disposal'],
+    ['Colour consulting', 'Wallpaper removal', 'Extensive patching', 'Lead paint management'], []),
+  cat('demolition', '🏗️ Demolition', 'demolition', 'trades',
+    [{ id: 'type', label: 'Type', type: 'select', options: ['Internal strip', 'Partial demolition', 'Full demolition'] }],
+    [{ name: 'Demolition', trade: 'Demo', rate: 150, unit: 'area', duration: 2, description: 'Demolish and remove' }, { name: 'Skip Bin', trade: 'Demo', rate: 850, unit: 'item', duration: 0, description: 'Waste removal' }],
+    [], ['Demolition and debris removal', 'Skip bin hire'], ['Asbestos removal', 'Structural engineering', 'Council permits'], [{ categoryId: 'structural', type: 'suggested' }]),
+  catX('electrical', '⚡ Electrical', 'electrical', 'trades', 'trade',
+    [{ id: 'scope', label: 'Scope', type: 'select', options: ['New fit-out', 'Rewire', 'Upgrade switchboard', 'Add circuits'] }],
+    [{ name: 'Electrical Rough-in', trade: 'Electrical', rate: 85, unit: 'area', duration: 2, description: 'Rough-in cabling' }, { name: 'Fit-off', trade: 'Electrical', rate: 800, unit: 'item', duration: 1, description: 'Install fittings and test' }],
+    [], ['All cabling and installation', 'Compliance certificate (CES)', 'AS/NZS 3000 compliance'], ['Light fitting supply', 'Data cabling', 'Solar/battery'], [{ categoryId: 'smartHome', type: 'suggested' }],
+    { usesParametric: true, supportsPcItems: false }),
+];

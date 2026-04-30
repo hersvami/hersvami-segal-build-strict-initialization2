@@ -1,0 +1,26 @@
+import { catX, type WorkCategory } from '../types';
+
+export const BATHROOM_CATEGORIES: WorkCategory[] = [
+  catX('bathroom', '🚿 Bathroom / Wet Areas', 'bathroom', 'wet', 'assembly',
+    [{ id: 'size', label: 'Approximate size', type: 'select', options: ['Small (3x2m)', 'Medium (4x3m)', 'Large (5x3m)', 'Custom'] },
+     { id: 'type', label: 'Type', type: 'select', options: ['Full renovation', 'New ensuite', 'New bathroom'] },
+     { id: 'tileExtent', label: 'Wall tile extent', type: 'select', options: ['Shower only + skirting tile', '1200mm high walls', '2100mm high walls', 'Floor-to-ceiling walls'] },
+     { id: 'tileFinish', label: 'Tile finish level', type: 'select', options: ['Standard ceramic', 'Rectified porcelain', 'Feature wall included', 'Large-format premium'] },
+     { id: 'vanityType', label: 'Vanity configuration', type: 'select', options: ['Standard 600mm vanity', '900mm vanity', '1200mm double vanity', 'Custom joinery vanity'] },
+     { id: 'showerScreen', label: 'Shower screen', type: 'select', options: ['Semi-frameless', 'Frameless', 'Fully framed', 'Reuse existing', 'No shower screen'] },
+     { id: 'fixtures', label: 'Fixture quality', type: 'select', options: ['Standard', 'Mid-range', 'Premium'] }],
+    [{ name: 'Demolition & Removal', trade: 'Demo', rate: 2800, unit: 'item', duration: 2, description: 'Strip bathroom, remove debris' },
+     { name: 'Plumbing Rough-in', trade: 'Plumbing', rate: 3200, unit: 'allow', duration: 2, description: 'Rough-in new pipework' },
+     { name: 'Waterproofing', trade: 'Waterproofing', rate: 185, unit: 'area', duration: 1, description: 'AS3740 compliant membrane' },
+     { name: 'Wall Tiling', trade: 'Tiling', rate: 145, unit: 'area', duration: 3, description: 'Supply & install wall tiles' },
+     { name: 'Floor Tiling', trade: 'Tiling', rate: 155, unit: 'area', duration: 2, description: 'Supply & install floor tiles' },
+     { name: 'Electrical Fit-off', trade: 'Electrical', rate: 1200, unit: 'allow', duration: 1, description: 'Lights, exhaust, heated towel rail' },
+     { name: 'Vanity & Mirror Install', trade: 'Carpentry', rate: 800, unit: 'item', duration: 1, description: 'Install vanity, mirror, accessories' },
+     { name: 'Plumbing Fit-off', trade: 'Plumbing', rate: 2400, unit: 'allow', duration: 1, description: 'Tapware, shower, toilet install' },
+     { name: 'Silicone & Finish', trade: 'Carpentry', rate: 350, unit: 'item', duration: 0.5, description: 'Seal all joints, final clean' }],
+    [{ description: 'Tiles', allowance: 80, unit: '$/m²' }, { description: 'Tapware Set', allowance: 800, unit: 'set' }, { description: 'Vanity Unit', allowance: 1200, unit: 'item' }, { description: 'Toilet Suite', allowance: 600, unit: 'item' }, { description: 'Shower Screen', allowance: 900, unit: 'item' }, { description: 'Bath (if applicable)', allowance: 1100, unit: 'item' }],
+    ['AS3740 waterproofing compliance', 'All labour and materials', 'Waste removal and disposal', 'Standard fixture installation', 'Silicone sealing to all joints'],
+    ['Asbestos removal', 'Structural alterations', 'Council/permit fees', 'Engineer certification', 'Floor levelling if required'],
+    [{ categoryId: 'cabinetry', type: 'suggested' }, { categoryId: 'flooring', type: 'suggested' }, { categoryId: 'painting', type: 'suggested' }],
+    { dimensionMode: 'area', bundles: ['waterproofing', 'plumbing', 'tiling'], supportsPcItems: true, contingency: 10, workType: 'renovation' }),
+];
