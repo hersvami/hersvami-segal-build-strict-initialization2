@@ -1,6 +1,7 @@
 import { Variation, Scope, TradeScope, BoQItem, TradeCategory } from '../types';
 import { tradeCategories } from '../../utils/tradeCategories';
 import { getRememberedRate } from './rateMemory';
+import { getTradeTemplate } from './tradeTemplates'; // FIX: Added missing import
 
 /**
  * Creates a new trade scope from a category, applying templates, 
