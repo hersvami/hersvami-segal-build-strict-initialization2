@@ -44,7 +44,6 @@ export function normalizeState(state: AppState): AppState {
       ...initial.uiState,
       ...(state.uiState || {}),
       view: activeProjectId ? 'project' : (state.uiState?.view || 'welcome'),
-      showProjectForm: false,
     },
   };
 }

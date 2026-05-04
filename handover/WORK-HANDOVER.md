@@ -56,6 +56,9 @@ The repository has been reconstructed on disk, packages have been installed, and
 - [x] Split Rawlinsons 2021 rate library into fetch-ready modules under `src/utils/rates/`.
 - [x] Added Rawlinsons material/P.C. supply-only rate library in fetch-ready modules.
 - [x] Split persisted state logic into fetch-ready modules under `src/logic/`.
+- [x] Added no-cache HTML metadata and runtime cache cleanup helper for stale browser builds.
+- [x] Fixed New Project modal not opening by preserving `uiState.showProjectForm` during state normalization.
+- [x] Hardened `Sidebar` against missing app action props to prevent runtime crash on stale/mismatched builds.
 - [x] Fix download/export behavior across Chrome without blocked popup behavior.
 
 ## Remaining Work
