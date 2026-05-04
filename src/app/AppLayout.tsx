@@ -12,19 +12,32 @@ type Props = { state: AppState; app: AppActions };
 export function AppLayout({ state, app }: Props) {
   return (
     <div className="flex h-screen bg-slate-50">
-      <Sidebar state={state} app={app} />
+      <Sidebar 
+        state={state} 
+        onSelectProject={app.handleSelectProject}
+        onNewProject={app.handleNewProject}
+        onDeleteProject={app.handleDeleteProject}
+        onExportProject={app.handleExportProject}
+        onSwitchCompany={app.handleSwitchCompany}
+        onNewQuote={app.handleNewQuote}
+        onNewVariation={app.handleNewVariation}
+        onBackToWelcome={app.handleBackToWelcome}
+      />
       <MainContent state={state} app={app} />
 
-      {state.uiState.showProjectForm && (
+      {state.uiState.showProjectForm ? (
         <ProjectForm
-          onClose={app.closeProjectForm}
           onSubmit={app.handleCreateProject}
+          onClose={app.closeProjectForm}
         />
-      )}
+      ) : null}
 
       {state.uiState.showWelcomeEmail && app.activeProject && (
         <SendWelcomeEmailModal
-          project={app.activeProject}
+          projectName={app.activeProject.name}
+          customerName={app.activeProject.customer.name}
+          customerEmail={app.activeProject.customer.email}
+          customerPhone={app.activeProject.customer.phone}
           company={app.activeCompany}
           onClose={app.closeWelcomeEmail}
         />
@@ -35,7 +48,7 @@ export function AppLayout({ state, app }: Props) {
           project={app.activeProject}
           company={app.activeCompany}
           documentType={app.builderDocType}
-          approvedQuotes={app.variations.filter(v => v.documentType === 'quote' && v.status === 'approved')}
+          initialVariation={app.editingVariation || undefined}
           onSave={app.handleSaveVariation}
           onClose={() => app.setShowBuilder(false)}
         />
@@ -43,7 +56,7 @@ export function AppLayout({ state, app }: Props) {
 
       {app.showExternalBaselineModal && (
         <ExternalQuoteModal
-          onClose={() => app.setShowExternalBaselineModal(false)}
+          onCancel={() => app.setShowExternalBaselineModal(false)}
           onSubmit={app.handleSaveExternalBaseline}
         />
       )}
