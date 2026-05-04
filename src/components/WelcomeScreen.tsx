@@ -11,43 +11,21 @@ export function WelcomeScreen({ company, onNewProject }: Props) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       <div className="max-w-4xl mx-auto px-6 py-16">
-        {/* Logo & Header */}
         <div className="text-center mb-12">
           {company.logoUrl ? (
-            <img
-              src={company.logoUrl}
-              alt={company.name}
-              className="h-20 mx-auto mb-4 object-contain"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-                const fallback = (e.target as HTMLImageElement).nextElementSibling;
-                if (fallback) (fallback as HTMLElement).style.display = 'flex';
-              }}
-            />
+            <img src={company.logoUrl} alt={company.name} className="h-20 mx-auto mb-4 object-contain"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; const fallback = (e.target as HTMLImageElement).nextElementSibling; if (fallback) (fallback as HTMLElement).style.display = 'flex'; }} />
           ) : null}
-          <div
-            className={`inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4 ${company.logoUrl ? 'hidden' : ''}`}
-          >
+          <div className={`inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4 ${company.logoUrl ? 'hidden' : ''}`}>
             <Building2 className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-4xl font-bold text-slate-900 mb-2">{company.name}</h1>
           <p className="text-lg text-slate-500">Professional Construction Quoting & Variation Management</p>
-          <div className="mt-2 text-sm text-slate-400">
-            ABN: {company.abn} | {company.phone}
-          </div>
+          <div className="mt-2 text-sm text-slate-400">ABN: {company.abn} | {company.phone}</div>
         </div>
-
-        {/* CTA */}
         <div className="text-center mb-12">
-          <button
-            onClick={onNewProject}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl text-lg font-semibold transition-colors shadow-lg shadow-blue-600/25"
-          >
-            Create New Project
-          </button>
+          <button onClick={onNewProject} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl text-lg font-semibold transition-colors shadow-lg shadow-blue-600/25">Create New Project</button>
         </div>
-
-        {/* Features Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[
             { icon: FileText, title: 'AI-Assisted Quotes', desc: 'Multi-scope quotes with 43 trade categories and Rawlinsons pricing' },
@@ -64,11 +42,9 @@ export function WelcomeScreen({ company, onNewProject }: Props) {
             </div>
           ))}
         </div>
-
         <div className="mt-12 text-center text-sm text-slate-400">
           <p>43 Trade Categories • Australian Construction Pricing • AI-Powered</p>
         </div>
-
         <SystemValidationPanel />
       </div>
     </div>

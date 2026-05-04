@@ -51,6 +51,7 @@ const ASSEMBLY_TRADE_MAP: Record<string, string[]> = {
 export function keywordFallback(scopeText: string): TradeAnalysis[] {
   const lower = scopeText.toLowerCase();
   const detected = new Map<string, TradeAnalysis>();
+
   for (const [categoryId, config] of Object.entries(KEYWORD_TRADE_MAP)) {
     const matched = config.keywords.filter((keyword) => lower.includes(keyword));
     if (matched.length === 0) continue;

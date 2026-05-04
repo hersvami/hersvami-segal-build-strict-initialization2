@@ -4,10 +4,10 @@ import { PhotoCapture } from './PhotoCapture';
 
 type Props = {
   onSubmit: (data: { name: string; address: string; customerName: string; customerEmail: string; customerPhone: string; heroPhoto?: string }) => void;
-  onCancel: () => void;
+  onClose: () => void;
 };
 
-export function ProjectForm({ onSubmit, onCancel }: Props) {
+export function ProjectForm({ onSubmit, onClose }: Props) {
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
   const [customerName, setCustomerName] = useState('');
@@ -26,9 +26,8 @@ export function ProjectForm({ onSubmit, onCancel }: Props) {
       <form onSubmit={handleSubmit} className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-200 p-6">
           <h2 className="text-xl font-bold text-slate-900">New Project</h2>
-          <button type="button" onClick={onCancel} className="rounded-lg p-2 hover:bg-slate-100"><X className="h-5 w-5" /></button>
+          <button type="button" onClick={onClose} className="rounded-lg p-2 hover:bg-slate-100"><X className="h-5 w-5" /></button>
         </div>
-
         <div className="p-6 space-y-4">
           <div>
             <label className="text-sm font-medium text-slate-700">Project Name</label>
@@ -54,9 +53,8 @@ export function ProjectForm({ onSubmit, onCancel }: Props) {
           </div>
           <PhotoCapture label="Hero Photo (optional)" value={heroPhoto} onChange={setHeroPhoto} />
         </div>
-
         <div className="flex justify-end gap-3 border-t border-slate-200 p-4">
-          <button type="button" onClick={onCancel} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">Cancel</button>
+          <button type="button" onClick={onClose} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">Cancel</button>
           <button type="submit" disabled={!name.trim() || !address.trim() || !customerName.trim() || !customerEmail.trim()} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">Create Project</button>
         </div>
       </form>

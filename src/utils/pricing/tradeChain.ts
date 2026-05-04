@@ -1,4 +1,4 @@
-/* ─── Segal Build — Trade Chain Suggestions ───────────────────────────────── */
+/* ─── Segal Build — Trade Chain Suggestions ─── */
 import { getCategoryById } from '../categories/extended';
 
 export type ChainSuggestion = {
@@ -40,7 +40,6 @@ const TRADE_CHAIN_MAP: Record<string, ChainRule[]> = {
   ],
   rendering: [
     { categoryId: 'painting', relation: 'following', reason: 'Rendered finishes commonly require coating or paint protection.' },
-    { categoryId: 'cladding', relation: 'alternative', reason: 'External envelope scope often overlaps with cladding selections.' } as never,
   ],
   cladding: [
     { categoryId: 'insulation', relation: 'preceding', reason: 'External wall cladding often pairs with insulation upgrades.' },
@@ -74,7 +73,6 @@ export function getTradeChainSuggestions(categoryId: string, existingIds: string
   const existing = new Set(existingIds);
   const rules = TRADE_CHAIN_MAP[categoryId] || [];
   const suggestions: ChainSuggestion[] = [];
-
   for (const rule of rules) {
     if (existing.has(rule.categoryId)) continue;
     const category = getCategoryById(rule.categoryId);
@@ -82,11 +80,10 @@ export function getTradeChainSuggestions(categoryId: string, existingIds: string
     suggestions.push({
       categoryId: rule.categoryId,
       label: category.label,
-      relation: rule.relation === 'preceding' || rule.relation === 'following' ? rule.relation : 'following',
+      relation: rule.relation,
       reason: rule.reason,
     });
   }
-
   return suggestions;
 }
 

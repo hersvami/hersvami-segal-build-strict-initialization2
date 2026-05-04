@@ -17,7 +17,6 @@ export const KITCHEN_LAUNDRY_CATEGORIES: WorkCategory[] = [
     ['Delivery & installation of cabinetry', 'Standard appliance connections', 'Splashback tiling', 'Making good walls and painting'],
     ['Appliance supply (unless PC)', 'Gas fitting if required', 'Structural alterations', 'Flooring replacement', 'Council/permit fees'],
     [{ categoryId: 'plumbing', type: 'auto' }, { categoryId: 'electrical', type: 'auto' }, { categoryId: 'painting', type: 'suggested' }, { categoryId: 'flooring', type: 'suggested' }]),
-
   cat('laundry', '🧺 Laundry', 'laundry', 'wet',
     [{ id: 'size', label: 'Laundry size', type: 'select', options: ['Small (2x2m)', 'Medium (3x2m)', 'Large (3x3m)'] },
      { id: 'type', label: 'Scope', type: 'select', options: ['Full renovation', 'New laundry', 'Upgrade'] }],

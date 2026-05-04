@@ -1,4 +1,4 @@
-import jsPDF from 'jspdf';
+import type { jsPDF } from 'jspdf';
 import type { Project, Variation } from '../../types/domain';
 
 export function drawDocumentIntro(doc: jsPDF, variation: Variation, project: Project, yPos: number, pageWidth: number): number {

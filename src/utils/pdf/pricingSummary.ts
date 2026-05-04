@@ -1,13 +1,18 @@
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import type { jsPDF } from 'jspdf';
+import { autoTable } from 'jspdf-autotable';
 import type { Variation } from '../../types/domain';
 import { formatCurrency } from '../helpers';
 
 export function drawPricingSummary(doc: jsPDF, variation: Variation, yPos: number, pageWidth: number): number {
+  if (yPos > 220) {
+    doc.addPage();
+    yPos = 18;
+  }
+
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
-  doc.setTextColor(41, 98, 255);
-  doc.text('Price Summary', 14, yPos);
+  doc.setTextColor(15, 23, 42);
+  doc.text('Investment Summary', 14, yPos);
   yPos += 6;
 
   autoTable(doc, {
@@ -21,15 +26,19 @@ export function drawPricingSummary(doc: jsPDF, variation: Variation, yPos: numbe
       ['GST (10%)', formatCurrency(variation.pricing.gst)],
     ],
     theme: 'plain',
-    styles: { fontSize: 10, cellPadding: 2 },
+    styles: { fontSize: 9.5, cellPadding: 2.5, textColor: [51, 65, 85] },
     margin: { left: 14, right: 14 },
-    columnStyles: { 1: { fontStyle: 'bold', halign: 'right' } },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    columnStyles: { 1: { fontStyle: 'bold', halign: 'right', textColor: [15, 23, 42] } },
   });
 
-  yPos = (doc as any).lastAutoTable.finalY + 10;
-  doc.setFontSize(14);
+  yPos = (doc as any).lastAutoTable.finalY + 6;
+  doc.setFillColor(29, 78, 216);
+  doc.roundedRect(14, yPos, pageWidth - 28, 14, 2, 2, 'F');
+  doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(41, 98, 255);
-  doc.text(`Total payable (incl. GST): ${formatCurrency(variation.pricing.total)}`, pageWidth - 14, yPos, { align: 'right' });
-  return yPos;
+  doc.setTextColor(255, 255, 255);
+  doc.text('Total payable (incl. GST)', 18, yPos + 9);
+  doc.text(formatCurrency(variation.pricing.total), pageWidth - 18, yPos + 9, { align: 'right' });
+  return yPos + 18;
 }

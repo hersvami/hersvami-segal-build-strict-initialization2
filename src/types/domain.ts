@@ -59,6 +59,7 @@ export type JobStage = {
   description: string;
   status: 'not-started' | 'in-progress' | 'complete';
   rateOverrideNote?: string;
+  pricingSource?: PricingSourceMeta;
 };
 
 export type Solution = {
@@ -71,13 +72,28 @@ export type Solution = {
 
 export type ParametricItem = {
   id: string;
-  unitId: string; // reference into the parametric library
-  label: string; // e.g. "Double GPO"
+  unitId: string;
+  label: string;
   unit: 'each' | 'lm' | 'm2' | 'allow';
-  rate: number; // unit rate inc. labour & materials
+  rate: number;
   quantity: number;
   notes?: string;
   phase?: 'preparation' | 'structure' | 'services' | 'finishes' | 'external';
+  pricingSource?: PricingSourceMeta;
+};
+
+export type PricingSourceMeta = {
+  source: string;
+  sourceType: 'benchmark' | 'manual' | 'supplier_quote' | 'subcontractor_quote' | 'rate_memory';
+  costType: 'composite' | 'material_only' | 'labour_only' | 'hire' | 'provision' | 'pc_value';
+  baseRate: number;
+  escalationFactor?: number;
+  escalatedRate?: number;
+  gstIncluded: boolean;
+  preliminariesIncluded: boolean;
+  confidence: 'benchmark_unverified' | 'verified' | 'quoted';
+  baseDate?: string;
+  notes?: string;
 };
 
 export type QuestionAnswer = {
@@ -89,8 +105,8 @@ export type QuoteScope = {
   id: string;
   categoryId: string;
   categoryLabel: string;
-  description: string; // auto-generated from answers (customer-visible)
-  builderNotes?: string; // manual notes from scope input (internal)
+  description: string;
+  builderNotes?: string;
   selectedType?: string;
   stages: JobStage[];
   dimensions: {
@@ -108,7 +124,7 @@ export type QuoteScope = {
 };
 
 export type ProjectBaseline = {
-  totalAreaM2: number; // total project floor area
+  totalAreaM2: number;
   storeys: 'single' | 'double' | 'multi';
   siteAccess: 'easy' | 'moderate' | 'difficult';
   ceilingHeightM: number;
@@ -124,6 +140,8 @@ export type QuotePricing = {
   overhead: number;
   profit: number;
   contingency: number;
+  preliminariesPercent?: number;
+  preliminariesAmount?: number;
   gst: number;
   clientTotal: number;
   totalIncGst: number;
@@ -131,8 +149,16 @@ export type QuotePricing = {
   overheadAmount: number;
   profitAmount: number;
   contingencyAmount: number;
+  preliminariesAmountExGst?: number;
   subtotalExclGst: number;
   gstAmount: number;
+};
+
+export type PreliminariesSettings = {
+  enabled: boolean;
+  mode: 'percent' | 'fixed';
+  percent: number;
+  amount: number;
 };
 
 export type Signature = {
@@ -207,6 +233,7 @@ export type Variation = {
   progressPhotos?: ProgressPhoto[];
   progressStages?: ProgressStage[];
   baseline?: ProjectBaseline;
+  preliminaries?: PreliminariesSettings;
   progressUpdates?: ProgressUpdate[];
   reviewFlags?: EstimatorReviewFlag[];
 };

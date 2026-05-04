@@ -11,8 +11,11 @@ export const EXTENDED_CATEGORIES: WorkCategory[] = [
 ];
 
 export const ALL_CATEGORIES: WorkCategory[] = [...CORE_CATEGORIES, ...EXTENDED_CATEGORIES];
+
 export const CATEGORY_MAP: Record<string, WorkCategory> = {};
-ALL_CATEGORIES.forEach((category) => { CATEGORY_MAP[category.id] = category; });
+ALL_CATEGORIES.forEach((category) => {
+  CATEGORY_MAP[category.id] = category;
+});
 
 export function getCategoryById(id: string): WorkCategory | undefined {
   return CATEGORY_MAP[id];
@@ -20,9 +23,14 @@ export function getCategoryById(id: string): WorkCategory | undefined {
 
 export function searchCategories(query: string): WorkCategory[] {
   const q = query.toLowerCase();
-  return ALL_CATEGORIES.filter((category) =>
-    category.label.toLowerCase().includes(q) ||
-    category.id.toLowerCase().includes(q) ||
-    category.stages.some((stage) => stage.trade.toLowerCase().includes(q) || stage.name.toLowerCase().includes(q)),
+  return ALL_CATEGORIES.filter(
+    (category) =>
+      category.label.toLowerCase().includes(q) ||
+      category.id.toLowerCase().includes(q) ||
+      category.stages.some(
+        (stage) =>
+          stage.trade.toLowerCase().includes(q) ||
+          stage.name.toLowerCase().includes(q),
+      ),
   );
 }

@@ -7,7 +7,9 @@ import type { AnalysisResult } from './tradeAnalyserTypes';
 export type { AnalysisResult, TradeAnalysis, TradeItem } from './tradeAnalyserTypes';
 
 export async function analyseScope(
-  scopeText: string, projectAreaM2: number, apiKey?: string,
+  scopeText: string,
+  projectAreaM2: number,
+  apiKey?: string,
 ): Promise<AnalysisResult> {
   if (!scopeText.trim()) return { trades: [], fallback: true };
   if (!apiKey) return { trades: keywordFallback(scopeText), fallback: true };
@@ -20,8 +22,14 @@ export async function analyseScope(
       try {
         const resp = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`,
-          { method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 4096, temperature: 0.2 } }) },
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { maxOutputTokens: 4096, temperature: 0.2 },
+            }),
+          },
         );
         if (resp.status === 429 || resp.status === 503) continue;
         if (!resp.ok) continue;
@@ -32,9 +40,13 @@ export async function analyseScope(
         if (trades.length > 0) {
           return { trades: mergeDetectedTrades(trades, keywordFallback(scopeText)), model: modelId, fallback: false };
         }
-      } catch { continue; }
+      } catch {
+        continue;
+      }
     }
-  } catch { /* fall through */ }
+  } catch {
+    /* fall through */
+  }
 
   return { trades: keywordFallback(scopeText), fallback: true };
 }

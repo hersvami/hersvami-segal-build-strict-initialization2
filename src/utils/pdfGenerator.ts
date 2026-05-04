@@ -1,29 +1,31 @@
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import type { Company, Project, Variation } from '../types/domain';
-import { drawBoqSections } from './pdf/boqSections';
-import { drawDocumentIntro } from './pdf/documentIntro';
-import { drawFooter } from './pdf/footer';
-import { drawLetterhead, drawProjectDetails } from './pdf/letterhead';
-import { drawPricingSummary } from './pdf/pricingSummary';
-import { drawScopeDetails } from './pdf/scopeDetails';
-import { drawScopeSummary } from './pdf/scopeSummary';
-import { drawTermsAndConditions } from './pdf/terms';
+import { PDF_MARGIN } from './pdfQuote/pdfConstants';
+import { drawHeader } from './pdfQuote/pdfHeader';
+import { drawLineItems } from './pdfQuote/pdfLineItems';
+import { drawFooterOnAllPages } from './pdfQuote/pdfLayout';
+import { drawProjectOverview, drawScopeNarrative } from './pdfQuote/pdfScopeSections';
+import { drawAcceptance, drawPaymentTerms, drawTotals } from './pdfQuote/pdfTotals';
+import { drawTerms } from './pdfQuote/pdfTerms';
 
 export function generateQuotePDF(variation: Variation, project: Project, company: Company): jsPDF {
-  const doc = new jsPDF();
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.width;
+  const pageHeight = doc.internal.pageSize.height;
+  const quoteDate = new Date(variation.createdAt || Date.now());
+  const expiryDate = new Date(quoteDate);
+  expiryDate.setDate(expiryDate.getDate() + 30);
+  const quoteNo = variation.variationNumber || `S${variation.id.slice(0, 5).toUpperCase()}`;
 
-  drawLetterhead(doc, variation, company);
-  drawProjectDetails(doc, variation, project);
-
-  let yPos = 70;
-  yPos = drawDocumentIntro(doc, variation, project, yPos, pageWidth);
-  yPos = drawScopeSummary(doc, variation, yPos, pageWidth);
-  yPos = drawScopeDetails(doc, variation, yPos, pageWidth);
-  yPos = drawBoqSections(doc, variation, yPos);
-  yPos = drawPricingSummary(doc, variation, yPos, pageWidth);
-  drawTermsAndConditions(doc, pageWidth);
-  drawFooter(doc, company, pageWidth);
-
+  let y = drawHeader(doc, company, project, variation, quoteNo, quoteDate, expiryDate);
+  y = drawProjectOverview(doc, variation, project, y, PDF_MARGIN, pageWidth, pageHeight);
+  y = drawScopeNarrative(doc, variation, y, PDF_MARGIN, pageWidth, pageHeight);
+  y = drawLineItems(doc, variation, y, PDF_MARGIN, pageWidth, pageHeight);
+  y = drawTotals(doc, variation, y, PDF_MARGIN, pageWidth, pageHeight);
+  y = drawPaymentTerms(doc, y, PDF_MARGIN, pageWidth, pageHeight);
+  drawAcceptance(doc, y, PDF_MARGIN, pageWidth, pageHeight);
+  drawFooterOnAllPages(doc, company, pageWidth, pageHeight);
+  drawTerms(doc, pageWidth, pageHeight, PDF_MARGIN);
+  drawFooterOnAllPages(doc, company, pageWidth, pageHeight);
   return doc;
 }

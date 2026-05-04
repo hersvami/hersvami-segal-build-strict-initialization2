@@ -11,42 +11,42 @@ type Props = { state: AppState; app: AppActions };
 
 export function AppLayout({ state, app }: Props) {
   return (
-    <div className="flex h-screen bg-slate-100">
-      <Sidebar
-        state={state}
-        onSelectProject={app.handleSelectProject}
-        onNewProject={app.handleNewProject}
-        onDeleteProject={app.handleDeleteProject}
-        onExportProject={app.handleExportProject}
-        onSwitchCompany={app.handleSwitchCompany}
-        onNewQuote={app.handleNewQuote}
-        onNewVariation={app.handleNewVariation}
-        onBackToWelcome={app.handleBackToWelcome}
-      />
+    <div className="flex h-screen bg-slate-50">
+      <Sidebar state={state} app={app} />
       <MainContent state={state} app={app} />
-      {state.uiState.showProjectForm && <ProjectForm onSubmit={app.handleCreateProject} onCancel={app.closeProjectForm} />}
+
+      {state.uiState.showProjectForm && (
+        <ProjectForm
+          onClose={app.closeProjectForm}
+          onSubmit={app.handleCreateProject}
+        />
+      )}
+
       {state.uiState.showWelcomeEmail && app.activeProject && (
         <SendWelcomeEmailModal
-          projectName={app.activeProject.name}
-          customerName={app.activeProject.customer.name}
-          customerEmail={app.activeProject.customer.email}
-          customerPhone={app.activeProject.customer.phone}
+          project={app.activeProject}
           company={app.activeCompany}
           onClose={app.closeWelcomeEmail}
         />
       )}
+
       {app.showBuilder && app.activeProject && (
         <VariationBuilder
           project={app.activeProject}
+          company={app.activeCompany}
           documentType={app.builderDocType}
-          existingQuotes={app.variations}
-          companyOH={app.activeCompany.defaultOverheadPercent}
-          companyProfit={app.activeCompany.defaultProfitPercent}
+          approvedQuotes={app.variations.filter(v => v.documentType === 'quote' && v.status === 'approved')}
           onSave={app.handleSaveVariation}
-          onCancel={() => app.setShowBuilder(false)}
+          onClose={() => app.setShowBuilder(false)}
         />
       )}
-      {app.showExternalBaselineModal && <ExternalQuoteModal onCancel={() => app.setShowExternalBaselineModal(false)} onSubmit={app.handleSaveExternalBaseline} />}
+
+      {app.showExternalBaselineModal && (
+        <ExternalQuoteModal
+          onClose={() => app.setShowExternalBaselineModal(false)}
+          onSubmit={app.handleSaveExternalBaseline}
+        />
+      )}
     </div>
   );
 }

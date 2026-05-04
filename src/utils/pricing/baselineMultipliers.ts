@@ -3,13 +3,12 @@ import type { ProjectBaseline } from '../../types/domain';
 
 export type BaselineAdjustment = {
   scaffoldingCost: number;
-  accessLabourMultiplier: number; // e.g. 1.0, 1.10, 1.15
-  accessSurcharge: number;        // calculated $ uplift
+  accessLabourMultiplier: number;
+  accessSurcharge: number;
   totalAdjustment: number;
   notes: string[];
 };
 
-// Indicative scaffolding rates per m² of floor area.
 const SCAFFOLD_RATE_PER_M2: Record<string, number> = {
   single: 0,
   double: 65,
@@ -27,28 +26,18 @@ export function calcBaselineAdjustment(
   rawTradeCost: number,
 ): BaselineAdjustment {
   if (!baseline) {
-    return {
-      scaffoldingCost: 0,
-      accessLabourMultiplier: 1,
-      accessSurcharge: 0,
-      totalAdjustment: 0,
-      notes: [],
-    };
+    return { scaffoldingCost: 0, accessLabourMultiplier: 1, accessSurcharge: 0, totalAdjustment: 0, notes: [] };
   }
 
   const notes: string[] = [];
   const area = Math.max(baseline.totalAreaM2 || 0, 0);
 
-  // Scaffolding for double / multi storey
   const scaffoldRate = SCAFFOLD_RATE_PER_M2[baseline.storeys] ?? 0;
   const scaffoldingCost = Math.round(scaffoldRate * area);
   if (scaffoldingCost > 0) {
-    notes.push(
-      `Scaffolding & roof edge protection (${baseline.storeys}-storey × ${area} m² @ $${scaffoldRate}/m²)`,
-    );
+    notes.push(`Scaffolding & roof edge protection (${baseline.storeys}-storey × ${area} m² @ $${scaffoldRate}/m²)`);
   }
 
-  // Access multiplier on labour (we approximate as % of trade cost)
   const accessLabourMultiplier = ACCESS_MULTIPLIER[baseline.siteAccess] ?? 1;
   const accessSurcharge = Math.round(rawTradeCost * (accessLabourMultiplier - 1));
   if (accessSurcharge > 0) {
@@ -56,13 +45,7 @@ export function calcBaselineAdjustment(
     notes.push(`Site access surcharge (${baseline.siteAccess}, +${pct}% labour)`);
   }
 
-  return {
-    scaffoldingCost,
-    accessLabourMultiplier,
-    accessSurcharge,
-    totalAdjustment: scaffoldingCost + accessSurcharge,
-    notes,
-  };
+  return { scaffoldingCost, accessLabourMultiplier, accessSurcharge, totalAdjustment: scaffoldingCost + accessSurcharge, notes };
 }
 
 export function describeBaseline(baseline: ProjectBaseline | undefined): string {

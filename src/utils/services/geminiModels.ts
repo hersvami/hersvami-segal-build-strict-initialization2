@@ -22,12 +22,7 @@ function getAvailableModels() {
   });
 }
 
-export type GeminiResult = {
-  text: string;
-  model: string;
-  tier: number;
-  fallback: boolean;
-};
+export type GeminiResult = { text: string; model: string; tier: number; fallback: boolean };
 
 export async function callGeminiWithFallback(prompt: string, apiKey: string): Promise<GeminiResult> {
   const models = getAvailableModels();
@@ -43,21 +38,19 @@ export async function callGeminiWithFallback(prompt: string, apiKey: string): Pr
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { maxOutputTokens: 4096 },
+            generationConfig: { maxOutputTokens: 4096, temperature: 0.2 },
           }),
         },
       );
-
       if (resp.status === 429 || resp.status === 503) {
         rateLimitedModels[model.id] = Date.now();
         continue;
       }
-
-      if (!resp.ok) throw new Error(`Gemini ${model.id} error: ${resp.status}`);
-
+      if (!resp.ok) continue;
       const data = await resp.json();
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (text) return { text, model: model.id, tier: model.tier, fallback: i > 0 };
+      if (!text) continue;
+      return { text, model: model.id, tier: model.tier, fallback: i > 0 };
     } catch {
       continue;
     }
@@ -69,23 +62,16 @@ export function getModelStatus() {
   const now = Date.now();
   const available: { id: string; label: string; tier: number; freeRPD: number }[] = [];
   const rateLimited: { id: string; label: string; resumesIn: number }[] = [];
-
   for (const model of GEMINI_MODELS) {
     const limitedAt = rateLimitedModels[model.id];
     if (limitedAt && now - limitedAt < RATE_LIMIT_COOLDOWN_MS) {
-      rateLimited.push({
-        id: model.id,
-        label: model.label,
-        resumesIn: Math.ceil((RATE_LIMIT_COOLDOWN_MS - (now - limitedAt)) / 1000),
-      });
+      rateLimited.push({ id: model.id, label: model.label, resumesIn: Math.ceil((RATE_LIMIT_COOLDOWN_MS - (now - limitedAt)) / 1000) });
     } else {
       available.push({ id: model.id, label: model.label, tier: model.tier, freeRPD: model.freeRPD });
     }
   }
-
   return {
-    available,
-    rateLimited,
-    totalDailyCapacity: GEMINI_MODELS.reduce((sum, model) => sum + model.freeRPD, 0),
+    available, rateLimited,
+    totalFreeRPD: available.reduce((sum, model) => sum + model.freeRPD, 0),
   };
 }

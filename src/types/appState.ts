@@ -1,5 +1,4 @@
 /* ─── Segal Build — App State Type ─── */
-
 import type { Project, Variation, Company } from './domain';
 
 export type AppState = {

@@ -8,7 +8,6 @@ export async function uploadPhotoToCloudinary(file: File): Promise<string> {
   const cloudName = env.VITE_CLOUDINARY_CLOUD_NAME || '';
   const preset = env.VITE_CLOUDINARY_UPLOAD_PRESET || '';
   if (!cloudName || !preset) return URL.createObjectURL(file);
-
   try {
     const formData = new FormData();
     formData.append('file', file);

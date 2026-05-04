@@ -1,4 +1,4 @@
-import jsPDF from 'jspdf';
+import type { jsPDF } from 'jspdf';
 import { SEGAL_BUILD_TERMS } from '../legal/terms';
 
 export function drawTermsAndConditions(doc: jsPDF, pageWidth: number) {

@@ -102,8 +102,20 @@ export function useAppActions(state: AppState, setState: (fn: (state: AppState) 
     handleNewVariation,
     closeProjectForm,
     closeWelcomeEmail,
-    handleSaveExternalBaseline: createExternalBaselineHandler({ state, activeProject, activeCompany, setState, setShowExternalBaselineModal, setBuilderDocType, setShowBuilder }),
-    handleBackToWelcome: () => setState((prev) => ({ ...prev, uiState: { ...prev.uiState, view: 'welcome', showProjectForm: false, showWelcomeEmail: false }, activeProjectId: null })),
+    handleSaveExternalBaseline: createExternalBaselineHandler({
+      state,
+      activeProject,
+      activeCompany,
+      setState,
+      setShowExternalBaselineModal,
+      setBuilderDocType,
+      setShowBuilder,
+    }),
+    handleBackToWelcome: () => setState((prev) => ({
+      ...prev,
+      uiState: { ...prev.uiState, view: 'welcome', showProjectForm: false, showWelcomeEmail: false },
+      activeProjectId: null,
+    })),
     handleSwitchCompany: (id: string) => setState((prev) => ({ ...prev, activeCompanyId: id })),
   };
 }
@@ -130,7 +142,13 @@ function createExternalBaselineHandler(args: {
       externalQuoteRef: payload,
       scopes: [],
       pricing: calculateQuote(payload.originalApprovedAmount, args.activeCompany.defaultOverheadPercent, args.activeCompany.defaultProfitPercent, 0),
-      changeLog: [{ id: generateId(), action: 'external-baseline-linked', timestamp: now, user: 'Builder', details: `Linked external quote ${payload.referenceNumber}` }],
+      changeLog: [{
+        id: generateId(),
+        action: 'external-baseline-linked',
+        timestamp: now,
+        user: 'Builder',
+        details: `Linked external quote ${payload.referenceNumber}`,
+      }],
       createdAt: now,
       updatedAt: now,
       internalNotes: payload.notes ? [payload.notes] : [],

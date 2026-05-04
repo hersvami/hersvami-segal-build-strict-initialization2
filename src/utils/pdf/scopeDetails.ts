@@ -1,14 +1,25 @@
-import jsPDF from 'jspdf';
+import type { jsPDF } from 'jspdf';
 import type { QuoteScope, Variation } from '../../types/domain';
 
 export function drawScopeDetails(doc: jsPDF, variation: Variation, yPos: number, pageWidth: number): number {
+  if (variation.scopes.length > 0) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(15, 23, 42);
+    doc.text('Detailed Scope of Works', 14, yPos);
+    yPos += 8;
+  }
+
   for (const scope of variation.scopes) {
-    yPos = maybeNewPage(doc, yPos, 44);
+    yPos = maybeNewPage(doc, yPos, 50);
+    doc.setDrawColor(226, 232, 240);
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(14, yPos - 5, pageWidth - 28, 9, 1.5, 1.5, 'FD');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
-    doc.setTextColor(41, 98, 255);
-    doc.text(scope.categoryLabel, 14, yPos);
-    yPos += 4;
+    doc.setTextColor(15, 23, 42);
+    doc.text(scope.categoryLabel, 18, yPos);
+    yPos += 8;
     yPos = drawScopeText(doc, scope, yPos, pageWidth);
   }
   return yPos + 2;
@@ -21,7 +32,7 @@ function drawScopeText(doc: jsPDF, scope: QuoteScope, yPos: number, pageWidth: n
   if (scope.description) {
     const lines = doc.splitTextToSize(scope.description, pageWidth - 28);
     doc.text(lines, 14, yPos);
-    yPos += lines.length * 4 + 2;
+    yPos += lines.length * 4 + 4;
   }
 
   yPos = drawList(doc, 'Included', scope.inclusions.map((item) => item.text), yPos, pageWidth);

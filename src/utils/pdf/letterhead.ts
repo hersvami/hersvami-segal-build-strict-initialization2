@@ -1,44 +1,70 @@
-import jsPDF from 'jspdf';
+import type { jsPDF } from 'jspdf';
 import type { Company, Project, Variation } from '../../types/domain';
 
 export function drawLetterhead(doc: jsPDF, variation: Variation, company: Company) {
   const pageWidth = doc.internal.pageSize.width;
-  const docLabel = variation.documentType === 'quote' ? 'QUOTATION' : 'VARIATION';
+  const docLabel = variation.documentType === 'quote' ? 'Quotation' : 'Variation';
 
-  doc.setFillColor(41, 98, 255);
-  doc.rect(0, 0, pageWidth, 25, 'F');
+  doc.setFillColor(15, 23, 42);
+  doc.rect(0, 0, pageWidth, 34, 'F');
+  doc.setFillColor(29, 78, 216);
+  doc.rect(0, 34, pageWidth, 2, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(19);
+  doc.setFont('helvetica', 'bold');
+  doc.text(company.name, 14, 16);
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`ABN ${company.abn}`, 14, 23);
+  if (company.licence) doc.text(company.licence, 14, 29);
+
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(18);
   doc.setFont('helvetica', 'bold');
-  doc.text(company.name, 14, 16);
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`ABN: ${company.abn}`, 14, 22);
-
-  doc.setTextColor(41, 98, 255);
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
   doc.text(docLabel, pageWidth - 14, 16, { align: 'right' });
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  if (variation.variationNumber) doc.text(`No: ${variation.variationNumber}`, pageWidth - 14, 22, { align: 'right' });
+  doc.text(new Date(variation.createdAt).toLocaleDateString('en-AU'), pageWidth - 14, 23, { align: 'right' });
+  if (variation.variationNumber) doc.text(`Reference ${variation.variationNumber}`, pageWidth - 14, 29, { align: 'right' });
 }
 
 export function drawProjectDetails(doc: jsPDF, variation: Variation, project: Project) {
   const pageWidth = doc.internal.pageSize.width;
 
-  doc.setTextColor(60, 60, 60);
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Prepared For', 14, 35);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
-  doc.text(`Project: ${project.name}`, 14, 41);
-  doc.text(`Address: ${project.address}`, 14, 46);
-  doc.text(`Client: ${project.customer.name}`, 14, 51);
-  doc.text(`Email: ${project.customer.email}`, 14, 56);
-  if (project.customer.phone) doc.text(`Phone: ${project.customer.phone}`, 14, 61);
+  doc.setDrawColor(226, 232, 240);
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(14, 46, pageWidth - 28, 32, 2, 2, 'FD');
 
-  doc.text(`Date: ${new Date(variation.createdAt).toLocaleDateString('en-AU')}`, pageWidth - 14, 41, { align: 'right' });
-  doc.text(`Document status: ${variation.status.toUpperCase()}`, pageWidth - 14, 46, { align: 'right' });
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Prepared for', 18, 55);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(71, 85, 105);
+  doc.text(project.customer.name, 18, 61);
+  doc.text(project.customer.email, 18, 66);
+  if (project.customer.phone) doc.text(project.customer.phone, 18, 71);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text('Project', pageWidth / 2, 55);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  doc.text(project.name, pageWidth / 2, 61);
+  doc.text(doc.splitTextToSize(project.address, pageWidth / 2 - 24), pageWidth / 2, 66);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text('Total incl. GST', pageWidth - 18, 55, { align: 'right' });
+  doc.setFontSize(13);
+  doc.setTextColor(29, 78, 216);
+  doc.text(formatMoney(variation.pricing.total), pageWidth - 18, 64, { align: 'right' });
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Status: ${variation.status.toUpperCase()}`, pageWidth - 18, 71, { align: 'right' });
+}
+
+function formatMoney(value: number): string {
+  return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(value || 0);
 }

@@ -8,9 +8,12 @@ export function calculateQuote(
   overheadPercent: number,
   profitPercent: number,
   contingencyPercent: number,
+  preliminariesAmount: number = 0,
+  preliminariesPercent: number = 0,
 ): QuotePricing {
-  const overhead = tradeCost * (overheadPercent / 100);
-  const trueCost = tradeCost + overhead;
+  const tradeCostWithPreliminaries = tradeCost + preliminariesAmount;
+  const overhead = tradeCostWithPreliminaries * (overheadPercent / 100);
+  const trueCost = tradeCostWithPreliminaries + overhead;
   const profit = trueCost * (profitPercent / 100);
   const clientTotal = trueCost + profit;
   const contingency = clientTotal * (contingencyPercent / 100);
@@ -18,34 +21,24 @@ export function calculateQuote(
   const gst = subtotal * GST_RATE;
   const totalIncGst = subtotal + gst;
 
-  const roundedTradeCost = Math.round(tradeCost);
-  const roundedOverhead = Math.round(overhead);
-  const roundedProfit = Math.round(profit);
-  const roundedContingency = Math.round(contingency);
-  const roundedGst = Math.round(gst);
-  const roundedSubtotal = Math.round(subtotal);
-  const roundedTotalIncGst = Math.round(totalIncGst);
-
   return {
-    overheadPercent,
-    profitPercent,
-    contingencyPercent,
-    gstPercent: 10,
-    tradeCost: roundedTradeCost,
-    overhead: roundedOverhead,
-    profit: roundedProfit,
-    contingency: roundedContingency,
-    gst: roundedGst,
+    overheadPercent, profitPercent, contingencyPercent, gstPercent: 10,
+    tradeCost: Math.round(tradeCostWithPreliminaries),
+    overhead: Math.round(overhead),
+    profit: Math.round(profit),
+    contingency: Math.round(contingency),
+    preliminariesPercent,
+    preliminariesAmount: Math.round(preliminariesAmount),
+    gst: Math.round(gst),
     clientTotal: Math.round(clientTotal),
-    totalIncGst: roundedTotalIncGst,
-
-    // Supplement optional structural parameters for components
-    total: roundedTotalIncGst,
-    overheadAmount: roundedOverhead,
-    profitAmount: roundedProfit,
-    contingencyAmount: roundedContingency,
-    subtotalExclGst: roundedSubtotal,
-    gstAmount: roundedGst,
+    totalIncGst: Math.round(totalIncGst),
+    total: Math.round(totalIncGst),
+    overheadAmount: Math.round(overhead),
+    profitAmount: Math.round(profit),
+    contingencyAmount: Math.round(contingency),
+    preliminariesAmountExGst: Math.round(preliminariesAmount),
+    subtotalExclGst: Math.round(subtotal),
+    gstAmount: Math.round(gst),
   };
 }
 
@@ -56,16 +49,11 @@ export function calculateStage(
   quantity: number = 1,
 ): number {
   switch (unit) {
-    case 'area':
-      return rate * (dimensions.width * dimensions.length);
-    case 'linear':
-      return rate * dimensions.width;
-    case 'item':
-      return rate * quantity;
-    case 'allow':
-      return rate;
-    default:
-      return rate;
+    case 'area': return rate * (dimensions.width * dimensions.length);
+    case 'linear': return rate * dimensions.width;
+    case 'item': return rate * quantity;
+    case 'allow': return rate;
+    default: return rate;
   }
 }
 
@@ -79,8 +67,5 @@ export function calculateScope(
     totalCost += calculateStage(stage.rate, stage.unit, dimensions);
     totalDuration += stage.duration;
   }
-  return {
-    totalCost: Math.round(totalCost),
-    totalDuration: Math.round(totalDuration * 10) / 10,
-  };
+  return { totalCost: Math.round(totalCost), totalDuration: Math.round(totalDuration * 10) / 10 };
 }

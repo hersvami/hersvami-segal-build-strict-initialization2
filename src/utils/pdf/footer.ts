@@ -1,4 +1,4 @@
-import jsPDF from 'jspdf';
+import type { jsPDF } from 'jspdf';
 import type { Company } from '../../types/domain';
 
 export function drawFooter(doc: jsPDF, company: Company, pageWidth: number) {

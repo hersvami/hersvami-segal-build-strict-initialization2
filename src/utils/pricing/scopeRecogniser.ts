@@ -2,11 +2,7 @@
 import { ALL_CATEGORIES, getCategoryById } from '../categories/extended';
 import type { CategoryRelation } from '../categories/types';
 
-export type ScopeRecognition = {
-  categoryId: string;
-  confidence: number;
-  label: string;
-};
+export type ScopeRecognition = { categoryId: string; confidence: number; label: string };
 
 const KEYWORD_MAP: Record<string, string[]> = {
   bathroom: ['bathroom', 'bath', 'ensuite', 'shower', 'vanity', 'wet area'],
@@ -60,7 +56,6 @@ const KEYWORD_MAP: Record<string, string[]> = {
 export function recogniseScope(description: string): ScopeRecognition[] {
   const desc = description.toLowerCase();
   const results: ScopeRecognition[] = [];
-
   for (const [categoryId, keywords] of Object.entries(KEYWORD_MAP)) {
     const cat = getCategoryById(categoryId);
     if (!cat) continue;
@@ -71,15 +66,10 @@ export function recogniseScope(description: string): ScopeRecognition[] {
         if (score > maxScore) maxScore = score;
       }
     }
-    if (maxScore > 0)
-      results.push({ categoryId, confidence: Math.min(maxScore * 5, 1), label: cat.label });
+    if (maxScore > 0) results.push({ categoryId, confidence: Math.min(maxScore * 5, 1), label: cat.label });
   }
-
   results.sort((a, b) => b.confidence - a.confidence);
-
-  if (results.length === 0 && ALL_CATEGORIES.length > 0)
-    results.push({ categoryId: ALL_CATEGORIES[0].id, confidence: 0.1, label: ALL_CATEGORIES[0].label });
-
+  if (results.length === 0 && ALL_CATEGORIES.length > 0) results.push({ categoryId: ALL_CATEGORIES[0].id, confidence: 0.1, label: ALL_CATEGORIES[0].label });
   return results;
 }
 
@@ -101,12 +91,7 @@ export function getSuggestedCategories(categoryId: string): string[] {
 }
 
 export function suggestContingency(workType: string): number {
-  const map: Record<string, number> = {
-    new_build: 5,
-    renovation: 10,
-    structural: 15,
-    maintenance: 5,
-  };
+  const map: Record<string, number> = { new_build: 5, renovation: 10, structural: 15, maintenance: 5 };
   return map[workType] || 10;
 }
 

@@ -2,10 +2,7 @@ import { useState } from 'react';
 import type { Variation } from '../../types/domain';
 import { PhotoCapture } from '../PhotoCapture';
 
-type Props = {
-  variation: Variation;
-  onUpdate: (variation: Variation) => void;
-};
+type Props = { variation: Variation; onUpdate: (variation: Variation) => void };
 
 export function ProgressHub({ variation, onUpdate }: Props) {
   const [updateText, setUpdateText] = useState('');
@@ -34,19 +31,8 @@ export function ProgressHub({ variation, onUpdate }: Props) {
     <div className="space-y-4 p-4">
       <PhotoCapture label="Add Progress Photo" value={undefined} onChange={handleAddPhoto} />
       <div className="flex gap-2">
-        <input
-          value={updateText}
-          onChange={(e) => setUpdateText(e.target.value)}
-          placeholder="Add progress update..."
-          className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
-        />
-        <button
-          onClick={handleAddUpdate}
-          disabled={!updateText.trim()}
-          className="rounded-lg bg-blue-600 px-3 py-2 text-sm text-white disabled:opacity-50"
-        >
-          Add
-        </button>
+        <input value={updateText} onChange={(e) => setUpdateText(e.target.value)} placeholder="Add progress update..." className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+        <button onClick={handleAddUpdate} disabled={!updateText.trim()} className="rounded-lg bg-blue-600 px-3 py-2 text-sm text-white disabled:opacity-50">Add</button>
       </div>
     </div>
   );

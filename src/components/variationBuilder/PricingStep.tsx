@@ -1,180 +1,116 @@
-import React, { useState } from 'react';
-import { Variation, Scope, TradeScope } from '../../types';
-import { formatCurrency } from '../../utils/formatters';
-import ParametricEditor from './ParametricEditor';
-import { saveRateOverride } from '../../utils/rateMemory';
+import type { ParametricItem, PreliminariesSettings, PricingSourceMeta, QuoteScope } from '../../types/domain';
+import { formatCurrency } from '../../utils/helpers';
+import { calcScopeTotal } from '../../utils/pricing/engine';
+import { PreliminariesPanel, getPreliminariesAmount } from './PreliminariesPanel';
+import { RateSourceBadge } from './RateSourceBadge';
 
-interface PricingStepProps {
-  variation: Variation;
-  onUpdate: (variation: Variation) => void;
-  onBack: () => void;
-  onNext: () => void;
-}
+type Props = { scopes: QuoteScope[]; setScopes: (next: QuoteScope[]) => void; preliminaries: PreliminariesSettings; setPreliminaries: (v: PreliminariesSettings) => void; ohPct: number; setOhPct: (v: number) => void; profitPct: number; setProfitPct: (v: number) => void; contingencyPct: number; setContingencyPct: (v: number) => void };
 
-const PricingStep: React.FC<PricingStepProps> = ({ 
-  variation, 
-  onUpdate, 
-  onBack, 
-  onNext 
-}) => {
-  const [expandedScopes, setExpandedScopes] = useState<Set<string>>(new Set());
+export default function PricingStep({ scopes, setScopes, preliminaries, setPreliminaries, ohPct, setOhPct, profitPct, setProfitPct, contingencyPct, setContingencyPct }: Props) {
+  const tradeCost = scopes.reduce((sum, scope) => sum + calcScopeTotal(scope), 0);
+  const preliminariesAmount = getPreliminariesAmount(preliminaries, tradeCost);
 
-  const toggleScope = (scopeId: string) => {
-    const newExpanded = new Set(expandedScopes);
-    if (newExpanded.has(scopeId)) {
-      newExpanded.delete(scopeId);
-    } else {
-      newExpanded.add(scopeId);
-    }
-    setExpandedScopes(newExpanded);
+  const updateScope = (scopeIndex: number, next: QuoteScope) => {
+    setScopes(scopes.map((scope, index) => (index === scopeIndex ? next : scope)));
   };
 
-  const updateStageCost = (scopeId: string, newCost: number) => {
-    onUpdate({
-      ...variation,
-      scopes: variation.scopes?.map(scope => 
-        scope.id === scopeId 
-          ? { ...scope, stageAllowance: newCost, isStageOverridden: true } 
-          : scope
-      ) || []
-    });
+  const updateStageCost = (scopeIndex: number, stageIndex: number, cost: number) => {
+    const scope = scopes[scopeIndex];
+    const stages = scope.stages.map((stage, index) => index === stageIndex ? { ...stage, cost } : stage);
+    updateScope(scopeIndex, { ...scope, stages });
   };
 
-  const updateParamRate = (itemId: string, newRate: number) => {
-    onUpdate(prev => {
-      if (!prev.baseline || !prev.scopes) return prev;
-
-      const updatedScopes = prev.scopes.map(scope => {
-        if (scope.type !== 'trade') return scope;
-        
-        const updatedItems = scope.boqItems.map(item => {
-          if (item.id === itemId && item.type === 'parametric') {
-            return { ...item, rate: newRate, isRateOverridden: true };
-          }
-          return item;
-        });
-
-        return { ...scope, boqItems: updatedItems };
-      });
-
-      // NEW: Save to rate memory when user manually changes a rate
-      const scope = prev.scopes.find(s => s.type === 'trade' && s.boqItems.some(i => i.id === itemId));
-      if (scope && scope.type === 'trade') {
-        const item = scope.boqItems.find(i => i.id === itemId);
-        if (item && item.type === 'parametric' && item.categoryId) {
-          saveRateOverride(item.categoryId, newRate);
-        }
-      }
-
-      return { ...prev, scopes: updatedScopes };
-    });
+  const updateStageMeta = (scopeIndex: number, stageIndex: number, costType: PricingSourceMeta['costType']) => {
+    const scope = scopes[scopeIndex];
+    const stages = scope.stages.map((stage, index) => index === stageIndex ? { ...stage, pricingSource: { ...(stage.pricingSource || defaultMeta(stage.cost)), costType } } : stage);
+    updateScope(scopeIndex, { ...scope, stages });
   };
 
-  const calculateScopeTotal = (scope: Scope) => {
-    if (scope.type === 'trade') {
-      if (scope.stageAllowance !== undefined && scope.isStageOverridden) {
-        return scope.stageAllowance;
-      }
-      return scope.boqItems.reduce((sum, item) => {
-        if (item.type === 'parametric') {
-          return sum + (item.quantity * (item.rate || 0));
-        }
-        return sum + (item.fixedPrice || 0);
-      }, 0);
-    }
-    return 0;
+  const updateParametricItem = (scopeIndex: number, itemIndex: number, patch: Partial<ParametricItem>) => {
+    const scope = scopes[scopeIndex];
+    const items = (scope.parametricItems || []).map((item, index) => index === itemIndex ? { ...item, ...patch } : item);
+    updateScope(scopeIndex, { ...scope, parametricItems: items });
   };
 
-  const grandTotal = variation.scopes?.reduce((sum, scope) => sum + calculateScopeTotal(scope), 0) || 0;
+  const updateItemCostType = (scopeIndex: number, itemIndex: number, costType: PricingSourceMeta['costType']) => {
+    const scope = scopes[scopeIndex];
+    const items = (scope.parametricItems || []).map((item, index) => index === itemIndex ? { ...item, pricingSource: { ...(item.pricingSource || defaultMeta(item.rate)), costType } } : item);
+    updateScope(scopeIndex, { ...scope, parametricItems: items });
+  };
 
   return (
     <div className="space-y-6">
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h2 className="text-2xl font-bold mb-4 text-gray-800">Pricing & Rates</h2>
-        <p className="text-gray-600 mb-6">
-          Review calculated quantities from baseline. Adjust unit rates or override total stage costs.
-          <span className="block text-sm text-green-600 mt-1">💡 Green fields indicate saved rates that will be reused.</span>
-        </p>
-
-        {variation.scopes?.map(scope => (
-          <div key={scope.id} className="border rounded-lg mb-4 overflow-hidden">
-            <div 
-              className="bg-gray-50 p-4 flex justify-between items-center cursor-pointer hover:bg-gray-100"
-              onClick={() => toggleScope(scope.id)}
-            >
-              <div className="flex items-center space-x-3">
-                <span className={`transform transition-transform ${expandedScopes.has(scope.id) ? 'rotate-90' : ''}`}>▶</span>
-                <h3 className="font-semibold text-lg">{scope.name}</h3>
-                {scope.isStageOverridden && <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Manual Override</span>}
-              </div>
-              <div className="text-right">
-                <div className="text-sm text-gray-500">Total</div>
-                <div className="font-bold text-xl">{formatCurrency(calculateScopeTotal(scope))}</div>
-              </div>
+      <div><h3 className="text-lg font-semibold text-slate-900">Pricing & Margins</h3><p className="text-sm text-slate-500 mt-1">Adjust overhead, profit and contingency margins.</p></div>
+      <div className="grid grid-cols-3 gap-4">
+        <div><label className="text-sm font-medium text-slate-700">Overhead %</label><input type="number" value={ohPct} onChange={(e) => setOhPct(Number(e.target.value))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" /></div>
+        <div><label className="text-sm font-medium text-slate-700">Profit %</label><input type="number" value={profitPct} onChange={(e) => setProfitPct(Number(e.target.value))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" /></div>
+        <div><label className="text-sm font-medium text-slate-700">Contingency %</label><input type="number" value={contingencyPct} onChange={(e) => setContingencyPct(Number(e.target.value))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" /></div>
+      </div>
+      <PreliminariesPanel settings={preliminaries} baseTradeCost={tradeCost} onChange={setPreliminaries} />
+      <div className="space-y-4">
+        {scopes.map((scope, scopeIndex) => (
+          <div key={scope.id} className="rounded-xl border border-slate-200 p-4">
+            <div className="flex items-center justify-between">
+              <h4 className="font-semibold text-slate-900">{scope.categoryLabel}</h4>
+              <span className="font-semibold text-slate-900">{formatCurrency(calcScopeTotal(scope))}</span>
             </div>
 
-            {expandedScopes.has(scope.id) && scope.type === 'trade' && (
-              <div className="p-4 bg-white border-t">
-                {/* Stage Cost Override */}
-                <div className="mb-6 p-4 bg-blue-50 rounded border border-blue-100">
-                  <label className="block text-sm font-medium text-blue-800 mb-2">
-                    Total Stage Cost Override (Optional)
-                  </label>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-gray-500">$</span>
-                    <input
-                      type="number"
-                      value={scope.stageAllowance ?? ''}
-                      onChange={(e) => updateStageCost(scope.id, parseFloat(e.target.value) || 0)}
-                      placeholder="Auto-calculated"
-                      className="flex-1 p-2 border border-blue-200 rounded focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                  <p className="text-xs text-blue-600 mt-1">
-                    Setting this ignores individual item calculations for this trade.
-                  </p>
+            {scope.stages.length > 0 && (
+              <div className="mt-3 overflow-hidden rounded-lg border border-slate-200">
+                <div className="grid grid-cols-[1fr_120px_130px] gap-2 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <span>Stage</span><span>Trade</span><span className="text-right">Cost</span>
                 </div>
+                {scope.stages.map((stage, stageIndex) => (
+                  <div key={`${stage.name}-${stageIndex}`} className="grid grid-cols-[1fr_120px_130px] items-center gap-2 border-t border-slate-200 px-3 py-2 text-sm">
+                    <div>
+                      <p className="font-medium text-slate-800">{stage.name}</p>
+                      {stage.description && <p className="text-xs text-slate-500">{stage.description}</p>}
+                      <RateSourceBadge meta={stage.pricingSource} onCostTypeChange={(costType) => updateStageMeta(scopeIndex, stageIndex, costType)} />
+                    </div>
+                    <span className="text-slate-500">{stage.trade}</span>
+                    <input type="number" value={stage.cost || 0} onChange={(e) => updateStageCost(scopeIndex, stageIndex, Number(e.target.value))} className="rounded-lg border border-slate-300 px-2 py-1 text-right text-sm" />
+                  </div>
+                ))}
+              </div>
+            )}
 
-                {/* Parametric Items Editor */}
-                <ParametricEditor 
-                  items={scope.boqItems.filter(i => i.type === 'parametric')}
-                  onItemsChange={(newItems) => {
-                    // Handle bulk changes if needed, mostly handled by individual rate updates now
-                    const updatedScopes = variation.scopes?.map(s => 
-                      s.id === scope.id ? { ...s, boqItems: newItems } : s
-                    );
-                    onUpdate({ ...variation, scopes: updatedScopes });
-                  }}
-                  onRateChange={updateParamRate}
-                />
+            {(scope.parametricItems || []).length > 0 && (
+              <div className="mt-3 overflow-hidden rounded-lg border border-slate-200">
+                <div className="grid grid-cols-[1fr_90px_110px_120px] gap-2 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <span>BoQ item</span><span className="text-right">Qty</span><span className="text-right">Rate</span><span className="text-right">Total</span>
+                </div>
+                {(scope.parametricItems || []).map((item, itemIndex) => (
+                  <div key={item.id} className="grid grid-cols-[1fr_90px_110px_120px] items-center gap-2 border-t border-slate-200 px-3 py-2 text-sm">
+                    <span className="font-medium text-slate-800">{item.label}<RateSourceBadge meta={item.pricingSource} onCostTypeChange={(costType) => updateItemCostType(scopeIndex, itemIndex, costType)} /></span>
+                    <input type="number" value={item.quantity} onChange={(e) => updateParametricItem(scopeIndex, itemIndex, { quantity: Number(e.target.value) })} className="rounded-lg border border-slate-300 px-2 py-1 text-right text-sm" />
+                    <input type="number" value={item.rate} onChange={(e) => updateParametricItem(scopeIndex, itemIndex, { rate: Number(e.target.value) })} className="rounded-lg border border-slate-300 px-2 py-1 text-right text-sm" />
+                    <span className="text-right font-semibold text-slate-800">{formatCurrency(item.rate * item.quantity)}</span>
+                  </div>
+                ))}
               </div>
             )}
           </div>
         ))}
-
-        {(!variation.scopes || variation.scopes.length === 0) && (
-          <div className="text-center py-10 text-gray-500">
-            No scopes added yet. Go back to Scope Selection to add trades.
-          </div>
-        )}
       </div>
 
-      <div className="flex justify-between items-center bg-gray-800 text-white p-6 rounded-lg shadow-lg sticky bottom-4">
-        <div>
-          <div className="text-sm text-gray-400">Estimated Total</div>
-          <div className="text-3xl font-bold">{formatCurrency(grandTotal)}</div>
-        </div>
-        <div className="flex space-x-4">
-          <button onClick={onBack} className="px-6 py-3 bg-gray-600 hover:bg-gray-500 rounded font-semibold transition">
-            Back
-          </button>
-          <button onClick={onNext} className="px-6 py-3 bg-green-600 hover:bg-green-500 rounded font-semibold transition">
-            Next: Summary
-          </button>
-        </div>
+      <div className="rounded-xl border border-slate-200 p-4 space-y-2">
+        <hr className="border-slate-200" />
+        <div className="flex justify-between text-sm"><span>Trade Cost Total</span><span>{formatCurrency(tradeCost)}</span></div>
+        <div className="flex justify-between text-sm"><span>Preliminaries</span><span>{formatCurrency(preliminariesAmount)}</span></div>
+        <div className="flex justify-between text-sm font-bold"><span>Direct Cost incl. Preliminaries</span><span>{formatCurrency(tradeCost + preliminariesAmount)}</span></div>
       </div>
     </div>
   );
-};
+}
 
-export default PricingStep;
+function defaultMeta(baseRate: number): PricingSourceMeta {
+  return {
+    source: 'Manual override',
+    sourceType: 'manual',
+    costType: 'composite',
+    baseRate,
+    gstIncluded: false,
+    preliminariesIncluded: false,
+    confidence: 'benchmark_unverified',
+  };
+}

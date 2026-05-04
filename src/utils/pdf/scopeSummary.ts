@@ -1,4 +1,4 @@
-import jsPDF from 'jspdf';
+import type { jsPDF } from 'jspdf';
 import type { Variation } from '../../types/domain';
 
 export function drawScopeSummary(doc: jsPDF, variation: Variation, yPos: number, pageWidth: number): number {

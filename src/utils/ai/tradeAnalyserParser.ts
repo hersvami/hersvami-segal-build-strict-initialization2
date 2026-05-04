@@ -13,8 +13,10 @@ export function parseGeminiResponse(text: string): TradeAnalysis[] {
     for (const trade of parsed.trades || []) {
       const categoryId = normaliseCategoryId(trade.categoryId, trade.label);
       if (!getAllCategories().some((category) => category.id === categoryId)) continue;
+
       const items = mapTradeItems(trade.preFilledItems || [], units, true);
       const suggestions = mapTradeItems(trade.suggestedItems || [], units, false);
+
       trades.push({
         categoryId,
         label: getAllCategories().find((category) => category.id === categoryId)?.label || trade.label,
@@ -25,6 +27,7 @@ export function parseGeminiResponse(text: string): TradeAnalysis[] {
         subtotal: items.reduce((sum, item) => sum + item.rate * item.quantity, 0),
       });
     }
+
     return dedupeTradeAnalyses(trades);
   } catch {
     return [];
@@ -36,7 +39,15 @@ function mapTradeItems(items: any[], units: ReturnType<typeof getAllParametricUn
     .map((item) => {
       const unit = units.find((candidate) => candidate.id === item.unitId);
       if (!unit) return null;
-      return { unitId: unit.id, label: unit.label, unit: unit.unit, rate: unit.rate, quantity: item.quantity || 1, isPreFilled, reason: item.reason };
+      return {
+        unitId: unit.id,
+        label: unit.label,
+        unit: unit.unit,
+        rate: unit.rate,
+        quantity: item.quantity || 1,
+        isPreFilled,
+        reason: item.reason,
+      };
     })
     .filter(Boolean) as TradeItem[];
 }

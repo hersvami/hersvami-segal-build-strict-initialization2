@@ -2,10 +2,9 @@
 import type { SolutionTemplate, StageTemplate } from './types';
 
 export const TRADE_MARKERS = [
-  'Demo', 'Carpentry', 'Plumbing', 'Electrical', 'Tiling',
-  'Painting', 'Plastering', 'Waterproofing', 'Cabinetry',
-  'Flooring', 'Glass', 'Roofing', 'Landscaping', 'Concreting',
-  'Structural',
+  'Demo', 'Carpentry', 'Plumbing', 'Electrical', 'Tiling', 'Painting',
+  'Plastering', 'Waterproofing', 'Cabinetry', 'Flooring', 'Glass',
+  'Roofing', 'Landscaping', 'Concreting', 'Structural',
 ] as const;
 
 export const DEFAULT_OH = 12;
@@ -26,31 +25,12 @@ export function fixedCostTrades(): string[] {
 }
 
 export const DEFAULT_SOLUTIONS: SolutionTemplate[] = [
-  {
-    name: 'Essential',
-    description: 'Quality standard materials',
-    multiplier: 1.0,
-    stages: [],
-  },
-  {
-    name: 'Standard',
-    description: 'Mid-range premium materials',
-    multiplier: 1.3,
-    stages: [],
-  },
-  {
-    name: 'Premium',
-    description: 'High-end designer materials',
-    multiplier: 1.7,
-    stages: [],
-  },
+  { name: 'Essential', description: 'Quality standard materials', multiplier: 1.0, stages: [] },
+  { name: 'Standard', description: 'Mid-range premium materials', multiplier: 1.3, stages: [] },
+  { name: 'Premium', description: 'High-end designer materials', multiplier: 1.7, stages: [] },
 ];
 
 export const createStage = (
-  name: string,
-  trade: string,
-  rate: number,
-  unit: StageTemplate['unit'],
-  duration: number,
-  description: string,
+  name: string, trade: string, rate: number,
+  unit: StageTemplate['unit'], duration: number, description: string,
 ): StageTemplate => ({ name, trade, rate, unit, duration, description });
