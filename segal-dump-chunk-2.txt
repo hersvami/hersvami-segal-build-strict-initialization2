@@ -1,0 +1,1603 @@
+===== FILE: src/components/variationBuilder/BaselineStep.tsx =====
+import type { ProjectBaseline } from '../../types/domain';
+import { formatCurrency } from '../../utils/helpers';
+import { describeBaseline } from '../../utils/pricing/baselineMultipliers';
+
+type Props = { baseline: ProjectBaseline; setBaseline: (b: ProjectBaseline) => void; previewTradeCost: number };
+
+export function BaselineStep({ baseline, setBaseline, previewTradeCost }: Props) {
+  const set = (patch: Partial<ProjectBaseline>) => setBaseline({ ...baseline, ...patch });
+  const num = (val: string) => { const n = parseFloat(val); return isNaN(n) ? 0 : n; };
+  const h = baseline.ceilingHeightM;
+  const isStandard = (h === 2.4 || h === 2.7 || h === 3.0);
+  const selectValue = isStandard ? h.toString() : 'custom';
+
+  return (
+    <div className="space-y-6">
+      <div><h3 className="text-lg font-semibold text-slate-900">Project Baseline</h3><p className="text-sm text-slate-500 mt-1">Enter the area and default ceiling height for the quoted works only.</p></div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div><label className="text-sm font-medium text-slate-700">Total Floor Area (m²)</label><input type="number" min={0} value={baseline.totalAreaM2 || ''} onChange={(e) => set({ totalAreaM2: num(e.target.value) })} placeholder="e.g. 120" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" /></div>
+        <div><label className="text-sm font-medium text-slate-700">Storeys</label><select value={baseline.storeys} onChange={(e) => set({ storeys: e.target.value as ProjectBaseline['storeys'] })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="single">Single Storey</option><option value="double">Double Storey</option><option value="multi">Multi / Split Level</option></select></div>
+        <div><label className="text-sm font-medium text-slate-700">Ceiling Height</label><select value={selectValue} onChange={(e) => { const val = e.target.value; if (val === 'custom') set({ ceilingHeightM: 2.5 }); else set({ ceilingHeightM: parseFloat(val) }); }} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="2.4">2.4m</option><option value="2.7">2.7m</option><option value="3.0">3.0m</option><option value="custom">Custom...</option></select>{selectValue === 'custom' && (<input type="number" min={2} step={0.1} value={baseline.ceilingHeightM} onChange={(e) => set({ ceilingHeightM: num(e.target.value) })} placeholder="Enter height in metres" className="mt-2 w-full rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />)}</div>
+        <div><label className="text-sm font-medium text-slate-700">Site Access</label><select value={baseline.siteAccess} onChange={(e) => set({ siteAccess: e.target.value as ProjectBaseline['siteAccess'] })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="easy">Easy — ground level, clear access</option><option value="moderate">Moderate — some restrictions</option><option value="difficult">Difficult — tight access, crane needed</option></select></div>
+        <div><label className="text-sm font-medium text-slate-700">Notes</label><input value={baseline.notes || ''} onChange={(e) => set({ notes: e.target.value })} placeholder="Any site-specific notes…" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" /></div>
+      </div>
+      {baseline.totalAreaM2 > 0 && (<div className="rounded-lg bg-blue-50 border border-blue-200 p-4"><p className="text-sm font-medium text-blue-900">Baseline: {describeBaseline(baseline)}</p>{previewTradeCost > 0 && (<p className="text-xs text-blue-700 mt-1">Trade cost before baseline adjustment: {formatCurrency(previewTradeCost)}</p>)}</div>)}
+    </div>
+  );
+}
+
+
+===== FILE: src/components/variationBuilder/BuilderHeader.tsx =====
+import { X } from 'lucide-react';
+import { cn, formatCurrency } from '../../utils/helpers';
+import type { ProjectBaseline } from '../../types/domain';
+import type { BaselineAdjustment } from '../../utils/pricing/baselineMultipliers';
+import { describeBaseline } from '../../utils/pricing/baselineMultipliers';
+import { STEPS, STEP_LABELS, type Step } from './builderShared';
+
+type Props = { documentType: 'quote' | 'variation'; step: Step; baseline: ProjectBaseline; baselineAdj: BaselineAdjustment; onCancel: () => void };
+
+export function BuilderHeader({ documentType, step, baseline, baselineAdj, onCancel }: Props) {
+  return (
+    <header className="shrink-0 border-b border-slate-200 p-6">
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-xl font-bold text-slate-900">{documentType === 'quote' ? 'New Quote' : 'New Variation'}</h2>
+        <button onClick={onCancel} className="rounded-lg p-2 hover:bg-slate-100" aria-label="Close builder"><X className="h-5 w-5" /></button>
+      </div>
+      <div className="flex gap-2">
+        {STEPS.map((name, i) => (<div key={name} className={cn('flex-1 rounded-lg py-2 text-center text-sm font-medium', name === step ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500')}>{i + 1}. {STEP_LABELS[name]}</div>))}
+      </div>
+      {baseline.totalAreaM2 > 0 && step !== 'baseline' && (
+        <p className="mt-2 text-xs text-slate-500">Baseline: <span className="font-medium text-slate-700">{describeBaseline(baseline)}</span>{baselineAdj.totalAdjustment > 0 && (<span> · auto-adjustment <span className="font-medium text-amber-700">{formatCurrency(baselineAdj.totalAdjustment)}</span></span>)}</p>
+      )}
+    </header>
+  );
+}
+
+
+===== FILE: src/components/variationBuilder/BuilderStepContent.tsx =====
+import type { PreliminariesSettings, ProjectBaseline, QuoteScope, Variation } from '../../types/domain';
+import type { TradeAnalysis } from '../../utils/ai/tradeAnalyser';
+import { BaselineStep } from './BaselineStep';
+import { ScopeStep } from './ScopeStep';
+import { ScopeDetailEditor } from './Editors';
+import PricingStep from './PricingStep';
+import { ReviewStep } from './ReviewStep';
+import type { Step } from './builderShared';
+
+type Props = {
+  step: Step; documentType: 'quote' | 'variation'; baseline: ProjectBaseline; rawTradeCost: number;
+  scopeInput: string; setScopeInput: (value: string) => void; selectedCategoryId: string; setSelectedCategoryId: (value: string) => void;
+  tradeAnalyses: TradeAnalysis[]; isAnalysing: boolean; analysisFallback: boolean;
+  showCategoryBrowser: boolean; setShowCategoryBrowser: (value: boolean) => void;
+  groupedCategories: Record<string, Array<{ id: string; label: string }>>;
+  scopes: QuoteScope[]; geminiKey: string; setGeminiKey: (value: string) => void; apiPolishing: boolean;
+  varRefQuote: string; setVarRefQuote: (value: string) => void; varReason: string; setVarReason: (value: string) => void;
+  approvedQuotes: Variation[]; lastAiModel: string; recogniseFeedback: string; keyRestored: boolean;
+  pricing: any; ohPct: number; setOhPct: (v: number) => void; profitPct: number; setProfitPct: (v: number) => void;
+  contingencyPct: number; setContingencyPct: (v: number) => void;
+  preliminaries: PreliminariesSettings; setPreliminaries: (v: PreliminariesSettings) => void;
+  setBaseline: (value: ProjectBaseline) => void; setScopes: (next: QuoteScope[]) => void;
+  onScopeChange: (index: number, next: QuoteScope) => void; onRecognise: () => void; onPolish: () => Promise<void>;
+  onAddScope: (categoryId: string) => void; onAddAll: () => void;
+  onAcceptSuggestion: (categoryId: string, unitId: string) => void;
+};
+
+export function BuilderStepContent({
+  step, documentType, baseline, rawTradeCost, scopeInput, setScopeInput, selectedCategoryId, setSelectedCategoryId,
+  tradeAnalyses, isAnalysing, analysisFallback, showCategoryBrowser, setShowCategoryBrowser, groupedCategories,
+  scopes, geminiKey, setGeminiKey, apiPolishing, varRefQuote, setVarRefQuote, varReason, setVarReason,
+  approvedQuotes, lastAiModel, recogniseFeedback, keyRestored, pricing, ohPct, setOhPct, profitPct, setProfitPct,
+  contingencyPct, setContingencyPct, preliminaries, setPreliminaries, setBaseline, setScopes, onScopeChange, onRecognise, onPolish, onAddScope, onAddAll, onAcceptSuggestion,
+}: Props) {
+  if (step === 'baseline') return <BaselineStep baseline={baseline} setBaseline={setBaseline} previewTradeCost={rawTradeCost} />;
+  if (step === 'scope') return (
+    <ScopeStep documentType={documentType} scopeInput={scopeInput} setScopeInput={setScopeInput} selectedCategoryId={selectedCategoryId} setSelectedCategoryId={setSelectedCategoryId}
+      recognised={[]} tradeAnalyses={tradeAnalyses} isAnalysing={isAnalysing} analysisFallback={analysisFallback}
+      showCategoryBrowser={showCategoryBrowser} setShowCategoryBrowser={setShowCategoryBrowser} groupedCategories={groupedCategories}
+      scopes={scopes} geminiKey={geminiKey} setGeminiKey={setGeminiKey} apiPolishing={apiPolishing}
+      varRefQuote={varRefQuote} setVarRefQuote={setVarRefQuote} varReason={varReason} setVarReason={setVarReason}
+      approvedQuotes={approvedQuotes.map((q) => ({ id: q.id, title: q.title }))} lastAiModel={lastAiModel} recogniseFeedback={recogniseFeedback} keyRestored={keyRestored}
+      onRecognise={onRecognise} onPolish={onPolish} onAddScope={onAddScope}
+      onRemoveScope={(index) => setScopes(scopes.filter((_, i) => i !== index))} onAddAll={onAddAll} onAcceptSuggestion={onAcceptSuggestion} />
+  );
+  if (step === 'details') return (
+    <div className="space-y-6">{scopes.map((scope, index) => (
+      <ScopeDetailEditor key={scope.id} scope={scope} index={index} tradeAnalysis={tradeAnalyses.find((t) => t.categoryId === scope.categoryId)} onChange={(next) => onScopeChange(index, next)} />
+    ))}</div>
+  );
+  if (step === 'pricing') return <PricingStep scopes={scopes} setScopes={setScopes} preliminaries={preliminaries} setPreliminaries={setPreliminaries} ohPct={ohPct} setOhPct={setOhPct} profitPct={profitPct} setProfitPct={setProfitPct} contingencyPct={contingencyPct} setContingencyPct={setContingencyPct} />;
+  return <ReviewStep scopes={scopes} pricing={pricing} ohPct={ohPct} profitPct={profitPct} contingencyPct={contingencyPct} analysisFallback={analysisFallback} tradeAnalyses={tradeAnalyses} />;
+}
+
+
+===== FILE: src/components/variationBuilder/CategoryBrowserPanel.tsx =====
+import { useState } from 'react';
+import { CATEGORY_GROUPS } from '../../utils/categories/types';
+
+type CategoryOption = { id: string; label: string };
+type Props = { showCategoryBrowser: boolean; setShowCategoryBrowser: (value: boolean) => void; groupedCategories: Record<string, CategoryOption[]>; addedIds: string[]; onToggleCategory: (categoryId: string, isAdded: boolean) => void };
+
+export function CategoryBrowserPanel({ showCategoryBrowser, setShowCategoryBrowser, groupedCategories, addedIds, onToggleCategory }: Props) {
+  const [search, setSearch] = useState('');
+
+  if (!showCategoryBrowser) {
+    return (<button type="button" onClick={() => setShowCategoryBrowser(true)} className="w-full rounded-xl border-2 border-dashed border-slate-300 py-4 text-sm font-medium text-slate-500 hover:border-blue-400 hover:text-blue-600">Browse All Categories</button>);
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-center justify-between mb-3"><h3 className="text-sm font-semibold text-slate-900">Browse Categories</h3><button onClick={() => setShowCategoryBrowser(false)} className="text-xs text-slate-400 hover:text-slate-600">Close</button></div>
+      <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search categories…" className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      <div className="max-h-96 overflow-y-auto space-y-4">
+        {Object.entries(groupedCategories).map(([group, categories]) => {
+          const filtered = categories.filter((c) => !search || c.label.toLowerCase().includes(search.toLowerCase()));
+          if (filtered.length === 0) return null;
+          return (
+            <div key={group}>
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">{CATEGORY_GROUPS[group] || group}</h4>
+              <div className="grid grid-cols-2 gap-1.5">
+                {filtered.map((cat) => {
+                  const isAdded = addedIds.includes(cat.id);
+                  return (<button key={cat.id} type="button" onClick={() => onToggleCategory(cat.id, isAdded)} className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors ${isAdded ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-slate-200 hover:border-blue-400 hover:bg-blue-50'}`}>
+                    <span className="font-medium">{cat.label}</span>{isAdded && <span className="ml-1 text-xs text-emerald-600">✓</span>}
+                  </button>);
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
+===== FILE: src/components/variationBuilder/CategoryInfoPanel.tsx =====
+import { useMemo } from 'react';
+import { getCategoryById } from '../../utils/categories/extended';
+
+type Props = { categoryId: string; onClose: () => void };
+
+export function CategoryInfoPanel({ categoryId, onClose }: Props) {
+  const category = useMemo(() => getCategoryById(categoryId), [categoryId]);
+  if (!category) return null;
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between mb-3">
+        <div><h3 className="text-lg font-bold text-slate-900">{category.icon} {category.label}</h3><span className="inline-block mt-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{category.group} · {category.archetype}</span></div>
+        <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-sm">Close</button>
+      </div>
+      {category.stages.length > 0 && (<div className="mb-3"><h4 className="text-xs font-semibold uppercase text-slate-500 mb-1">Stages</h4><div className="space-y-1">{category.stages.map((stage, i) => (<div key={i} className="flex justify-between text-sm"><span className="text-slate-700">{stage.name}</span><span className="text-slate-500">${stage.rate}/{stage.unit}</span></div>))}</div></div>)}
+      {category.pcItems.length > 0 && (<div className="mb-3"><h4 className="text-xs font-semibold uppercase text-slate-500 mb-1">PC Items</h4><div className="space-y-1">{category.pcItems.map((item, i) => (<div key={i} className="flex justify-between text-sm"><span className="text-slate-700">{item.description}</span><span className="text-slate-500">{item.allowance ? `$${item.allowance}` : 'TBD'}</span></div>))}</div></div>)}
+      {category.inclusions.length > 0 && (<div className="mb-3"><h4 className="text-xs font-semibold uppercase text-emerald-600 mb-1">Inclusions</h4><ul className="list-none space-y-0.5">{category.inclusions.map((item, i) => (<li key={i} className="text-sm text-slate-600">✓ {item}</li>))}</ul></div>)}
+      {category.exclusions.length > 0 && (<div><h4 className="text-xs font-semibold uppercase text-red-500 mb-1">Exclusions</h4><ul className="list-none space-y-0.5">{category.exclusions.map((item, i) => (<li key={i} className="text-sm text-slate-600">✗ {item}</li>))}</ul></div>)}
+    </div>
+  );
+}
+
+
+===== FILE: src/components/variationBuilder/CategoryQuestions.tsx =====
+import type { QuoteScope } from '../../types/domain';
+import { getCategoryById } from '../../utils/categories/extended';
+
+type Props = { scope: QuoteScope; onChange: (next: QuoteScope) => void };
+
+export function CategoryQuestions({ scope, onChange }: Props) {
+  const category = getCategoryById(scope.categoryId);
+  if (!category || !category.questions || category.questions.length === 0) return null;
+  const answers = scope.questionAnswers || [];
+  const getAnswer = (questionId: string) => answers.find(a => a.questionId === questionId)?.answer || '';
+  const setAnswer = (questionId: string, answer: string) => {
+    const next = answers.filter(a => a.questionId !== questionId);
+    if (answer) next.push({ questionId, answer });
+    const nextAnswers = { ...scope.answers };
+    if (answer) nextAnswers[questionId] = answer; else delete nextAnswers[questionId];
+    onChange({ ...scope, answers: nextAnswers, questionAnswers: next });
+  };
+  return (
+    <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+      <h4 className="text-xs font-semibold uppercase text-blue-700 mb-2">Category Questions</h4>
+      <div className="space-y-3">
+        {category.questions.map((q) => { const current = getAnswer(q.id); return (
+          <div key={q.id}><label className="text-sm font-medium text-slate-700">{q.label}</label>
+            {q.type === 'select' && q.options ? (<select value={current} onChange={(e) => setAnswer(q.id, e.target.value)} className="mt-1 w-full rounded-lg border border-blue-300 px-3 py-2 text-sm bg-white"><option value="">Select...</option>{q.options.map((opt) => (<option key={opt} value={opt}>{opt}</option>))}</select>
+            ) : (<input type={q.type === 'number' ? 'number' : 'text'} value={current} onChange={(e) => setAnswer(q.id, e.target.value)} className="mt-1 w-full rounded-lg border border-blue-300 px-3 py-2 text-sm bg-white" />)}
+          </div>); })}
+      </div>
+    </div>
+  );
+}
+
+
+===== FILE: src/components/variationBuilder/DimensionInput.tsx =====
+type Props = { label: string; value: number; onChange: (v: number) => void };
+
+export function DimensionInput({ label, value, onChange }: Props) {
+  return (
+    <div>
+      <label className="block text-xs text-slate-500">{label}</label>
+      <input type="number" value={value || ''} onChange={(e) => onChange(Number(e.target.value) || 0)} placeholder="0"
+        className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+    </div>
+  );
+}
+
+
+===== FILE: src/components/variationBuilder/EditableList.tsx =====
+import { Pencil, Plus, X } from 'lucide-react';
+import { useState } from 'react';
+import { generateId } from '../../utils/helpers';
+
+type ItemType = { id: string; text: string; isDefault: boolean };
+type Props = { title: string; items: ItemType[]; onChange: (items: ItemType[]) => void; color: 'emerald' | 'red'; icon: string };
+
+export function EditableList({ title, items, onChange, color, icon }: Props) {
+  const [editing, setEditing] = useState<number | null>(null);
+  const [draft, setDraft] = useState('');
+  const [adding, setAdding] = useState(false);
+  const borderColor = color === 'emerald' ? 'border-emerald-200' : 'border-red-200';
+  const bgColor = color === 'emerald' ? 'bg-emerald-50' : 'bg-red-50';
+  const textColor = color === 'emerald' ? 'text-emerald-700' : 'text-red-700';
+
+  const handleSave = (index: number) => { if (!draft.trim()) return; const next = [...items]; next[index] = { ...next[index], text: draft.trim() }; onChange(next); setEditing(null); setDraft(''); };
+  const handleAdd = () => { if (!draft.trim()) return; onChange([...items, { id: generateId(), text: draft.trim(), isDefault: false }]); setDraft(''); setAdding(false); };
+  const handleRemove = (index: number) => { onChange(items.filter((_, i) => i !== index)); };
+
+  return (
+    <div className={`rounded-lg border ${borderColor} ${bgColor} p-3`}>
+      <h4 className={`text-xs font-semibold uppercase ${textColor} mb-2`}>{icon} {title}</h4>
+      <div className="space-y-1">
+        {items.map((item, i) => (
+          <div key={i} className="flex items-center gap-2 text-sm">
+            {editing === i ? (<><input value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSave(i)} className="flex-1 rounded border border-slate-300 px-2 py-1 text-sm" autoFocus /><button onClick={() => handleSave(i)} className="text-xs font-medium text-blue-600">Save</button><button onClick={() => setEditing(null)} className="text-xs text-slate-400">Cancel</button></>
+            ) : (<><span className="flex-1 text-slate-700">{item.text}</span><button onClick={() => { setEditing(i); setDraft(item.text); }} className="text-slate-400 hover:text-slate-600"><Pencil className="h-3 w-3" /></button><button onClick={() => handleRemove(i)} className="text-slate-400 hover:text-red-600"><X className="h-3 w-3" /></button></>)}
+          </div>
+        ))}
+      </div>
+      {adding ? (
+        <div className="mt-2 flex items-center gap-2"><input value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAdd()} placeholder="Type item…" className="flex-1 rounded border border-slate-300 px-2 py-1 text-sm" autoFocus /><button onClick={handleAdd} className="text-xs font-medium text-blue-600">Add</button><button onClick={() => setAdding(false)} className="text-xs text-slate-400">Cancel</button></div>
+      ) : (<button onClick={() => setAdding(true)} className={`mt-2 flex items-center gap-1 text-xs font-medium ${textColor} hover:opacity-80`}><Plus className="h-3 w-3" /> Add</button>)}
+    </div>
+  );
+}
+
+
+===== FILE: src/components/variationBuilder/Editors.tsx =====
+export { ScopeDetailEditor } from './ScopeDetailEditor';
+export { PCItemEditor } from './PCItemEditor';
+
+
+===== FILE: src/components/variationBuilder/PCItemEditor.tsx =====
+import { useState } from 'react';
+import { Plus, Trash2 } from 'lucide-react';
+import type { PCItem } from '../../types/domain';
+import { formatCurrency, generateId } from '../../utils/helpers';
+
+type Props = { items: PCItem[]; onChange: (items: PCItem[]) => void };
+
+export function PCItemEditor({ items, onChange }: Props) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [draft, setDraft] = useState({ description: '', allowance: 0, unit: 'item' });
+  const update = (index: number, patch: Partial<PCItem>) => { const next = [...items]; next[index] = { ...next[index], ...patch }; onChange(next); };
+  const remove = (index: number) => onChange(items.filter((_, i) => i !== index));
+  const add = () => { if (!draft.description.trim()) return; onChange([...items, { id: generateId(), description: draft.description.trim(), allowance: draft.allowance, unit: draft.unit }]); setDraft({ description: '', allowance: 0, unit: 'item' }); setShowAdd(false); };
+  const total = items.reduce((sum, it) => sum + (it.allowance || 0), 0);
+
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4">
+      <div className="flex items-center justify-between mb-3"><h4 className="font-semibold text-amber-900">PC Items (Prime Cost)</h4><span className="text-sm font-medium text-amber-700">{items.length} item{items.length === 1 ? '' : 's'} · {formatCurrency(total)}</span></div>
+      {items.length > 0 && (<div className="mb-3 space-y-2">{items.map((item, i) => (<div key={i} className="flex items-center gap-2 rounded-lg bg-white border border-amber-200 p-2 text-sm"><input value={item.description} onChange={(e) => update(i, { description: e.target.value })} className="flex-1 min-w-0 rounded border-0 bg-transparent px-1 py-0.5 outline-none focus:bg-amber-50" /><span className="text-xs text-slate-400">$</span><input type="number" value={item.allowance} onChange={(e) => update(i, { allowance: Number(e.target.value) })} className="w-20 rounded border-0 bg-transparent px-1 py-0.5 text-right outline-none focus:bg-amber-50" /><span className="text-xs text-slate-400">/{item.unit}</span><button onClick={() => remove(i)} className="rounded p-1 text-slate-400 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button></div>))}</div>)}
+      {showAdd ? (
+        <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-3"><input value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder="Item description" className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" autoFocus /><div className="grid grid-cols-2 gap-2"><div><label className="text-xs text-slate-500">Allowance ($)</label><input type="number" value={draft.allowance} onChange={(e) => setDraft({ ...draft, allowance: Number(e.target.value) })} className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" /></div><div><label className="text-xs text-slate-500">Unit</label><select value={draft.unit} onChange={(e) => setDraft({ ...draft, unit: e.target.value })} className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"><option value="item">Item</option><option value="lm">Lineal metre</option><option value="m2">Square metre</option><option value="set">Set</option></select></div></div><div className="flex gap-2"><button onClick={add} disabled={!draft.description.trim()} className="flex items-center gap-1 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"><Plus className="h-3 w-3" /> Add PC Item</button><button onClick={() => setShowAdd(false)} className="rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100">Cancel</button></div></div>
+      ) : (<button onClick={() => setShowAdd(true)} className="flex items-center gap-1 text-sm font-medium text-amber-700 hover:text-amber-800"><Plus className="h-3.5 w-3.5" /> Add PC Item</button>)}
+    </div>
+  );
+}
+
+
+===== FILE: src/components/variationBuilder/ParametricEditor.tsx =====
+import { useState } from 'react';
+import { Plus, Trash2 } from 'lucide-react';
+import type { ParametricItem } from '../../types/domain';
+import { getUnitsForCategory } from '../../utils/pricing/parametricUnits';
+import { formatCurrency, generateId } from '../../utils/helpers';
+
+type Props = { categoryId: string; items: ParametricItem[]; onChange: (items: ParametricItem[]) => void };
+
+export default function ParametricEditor({ categoryId, items, onChange }: Props) {
+  const [showAdd, setShowAdd] = useState(false);
+  const availableUnits = getUnitsForCategory(categoryId);
+  const update = (index: number, patch: Partial<ParametricItem>) => { const next = [...items]; next[index] = { ...next[index], ...patch }; onChange(next); };
+  const remove = (index: number) => onChange(items.filter((_, i) => i !== index));
+  const total = items.reduce((sum, i) => sum + i.rate * i.quantity, 0);
+
+  return (
+    <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4">
+      <div className="flex items-center justify-between mb-3"><h4 className="font-semibold text-blue-900">Parametric BoQ Items</h4><span className="text-sm font-medium text-blue-700">{items.length} items · {formatCurrency(total)}</span></div>
+      {items.length > 0 && (<div className="mb-3 space-y-2">{items.map((item, i) => (
+        <div key={item.id} className="flex items-center gap-2 rounded-lg bg-white border border-blue-200 p-2 text-sm">
+          <span className="flex-1 min-w-0 truncate font-medium text-slate-900">{item.label}</span>
+          <span className="text-xs text-slate-400">{item.unit}</span>
+          <input type="number" value={item.quantity} onChange={(e) => update(i, { quantity: Number(e.target.value) })} className="w-16 rounded border border-slate-300 px-1 py-0.5 text-right text-sm" />
+          <span className="text-xs text-slate-400">@$</span>
+          <input type="number" value={item.rate} onChange={(e) => update(i, { rate: Number(e.target.value) })} className="w-20 rounded border border-slate-300 px-1 py-0.5 text-right text-sm" />
+          <span className="text-xs font-medium text-slate-700 w-20 text-right">{formatCurrency(item.rate * item.quantity)}</span>
+          <button onClick={() => remove(i)} className="rounded p-1 text-slate-400 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
+        </div>))}</div>)}
+      {showAdd ? (
+        <div className="space-y-2 rounded-lg border border-blue-300 bg-blue-50 p-3">
+          <p className="text-xs font-medium text-blue-800">Select items to add:</p>
+          <div className="max-h-48 overflow-y-auto space-y-1">{availableUnits.filter((u) => !items.some((item) => item.unitId === u.id)).map((unit) => (
+            <button key={unit.id} onClick={() => { onChange([...items, { id: generateId(), unitId: unit.id, label: unit.label, unit: unit.unit as ParametricItem['unit'], rate: unit.rate, quantity: unit.defaultQty || 1 }]); }} className="w-full text-left rounded-lg border border-blue-100 bg-white px-3 py-2 text-sm hover:bg-blue-50">
+              <span className="font-medium">{unit.label}</span> <span className="text-xs text-slate-500">· {unit.unit} · ${unit.rate}</span>
+            </button>))}</div>
+          <button onClick={() => setShowAdd(false)} className="text-xs text-slate-500 hover:text-slate-700">Close</button>
+        </div>
+      ) : availableUnits.length > 0 && (<button onClick={() => setShowAdd(true)} className="flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-800"><Plus className="h-3.5 w-3.5" /> Add BoQ Item</button>)}
+    </div>
+  );
+}
+
+
+===== FILE: src/components/variationBuilder/PhaseBoqPanel.tsx =====
+import { Layers3 } from 'lucide-react';
+import { formatCurrency } from '../../utils/helpers';
+import { PHASE_LABELS, PHASE_ORDER, type PhaseKey } from './phaseGrouping';
+
+type PhaseItem = { id: string; label: string; trade: string; cost: number; source: 'stage' | 'parametric' };
+
+export function PhaseBoqPanel({ phaseGroups }: { phaseGroups: Record<PhaseKey, PhaseItem[]> }) {
+  if (!PHASE_ORDER.some((phase) => phaseGroups[phase].length > 0)) return null;
+  return (
+    <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4">
+      <div className="mb-3 flex items-center gap-2"><Layers3 className="h-4 w-4 text-indigo-700" /><h4 className="text-sm font-semibold text-indigo-900">Phase Grouped BoQ</h4></div>
+      <div className="space-y-3">{PHASE_ORDER.filter((phase) => phaseGroups[phase].length > 0).map((phase) => <PhaseBlock key={phase} phase={phase} items={phaseGroups[phase]} />)}</div>
+    </div>
+  );
+}
+
+function PhaseBlock({ phase, items }: { phase: PhaseKey; items: PhaseItem[] }) {
+  const total = items.reduce((sum, item) => sum + item.cost, 0);
+  return (
+    <div className="rounded-lg border border-indigo-100 bg-white p-3">
+      <div className="mb-2 flex items-center justify-between"><span className="text-xs font-semibold uppercase tracking-wide text-indigo-700">{PHASE_LABELS[phase]}</span><span className="text-xs font-medium text-indigo-900">{formatCurrency(total)}</span></div>
+      <div className="space-y-1.5">{items.map((item) => <div key={item.id} className="flex items-center justify-between gap-3 text-sm"><div className="min-w-0"><div className="font-medium text-slate-800">{item.label}</div><div className="text-xs text-slate-500">{item.trade} · {item.source === 'parametric' ? 'BoQ item' : 'Stage'}</div></div><span className="shrink-0 text-slate-700">{formatCurrency(item.cost)}</span></div>)}</div>
+    </div>
+  );
+}
+
+
+===== FILE: src/components/variationBuilder/PreliminariesPanel.tsx =====
+import type { PreliminariesSettings } from '../../types/domain';
+import { formatCurrency } from '../../utils/helpers';
+
+type Props = {
+  settings: PreliminariesSettings;
+  baseTradeCost: number;
+  onChange: (settings: PreliminariesSettings) => void;
+};
+
+export function getPreliminariesAmount(settings: PreliminariesSettings, baseTradeCost: number) {
+  if (!settings.enabled) return 0;
+  return settings.mode === 'fixed' ? settings.amount : Math.round(baseTradeCost * (settings.percent / 100));
+}
+
+export function PreliminariesPanel({ settings, baseTradeCost, onChange }: Props) {
+  const amount = getPreliminariesAmount(settings, baseTradeCost);
+  const patch = (next: Partial<PreliminariesSettings>) => onChange({ ...settings, ...next });
+
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h4 className="font-semibold text-amber-950">Preliminaries</h4>
+          <p className="mt-1 text-xs text-amber-800">Site setup, supervision, insurance, temporary works and scaffold allowance.</p>
+        </div>
+        <label className="flex items-center gap-2 text-sm text-amber-900">
+          <input type="checkbox" checked={settings.enabled} onChange={(event) => patch({ enabled: event.target.checked })} />
+          Include
+        </label>
+      </div>
+      {settings.enabled && (
+        <div className="mt-3 grid grid-cols-3 gap-3">
+          <select value={settings.mode} onChange={(event) => patch({ mode: event.target.value as PreliminariesSettings['mode'] })} className="rounded-lg border border-amber-200 px-3 py-2 text-sm">
+            <option value="percent">Percent</option>
+            <option value="fixed">Fixed amount</option>
+          </select>
+          <input type="number" value={settings.mode === 'percent' ? settings.percent : settings.amount} onChange={(event) => patch(settings.mode === 'percent' ? { percent: Number(event.target.value) } : { amount: Number(event.target.value) })} className="rounded-lg border border-amber-200 px-3 py-2 text-sm" />
+          <div className="rounded-lg bg-white px-3 py-2 text-right text-sm font-semibold text-amber-950">{formatCurrency(amount)}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+===== FILE: src/components/variationBuilder/PricingStep.tsx =====
+import type { ParametricItem, PreliminariesSettings, PricingSourceMeta, QuoteScope } from '../../types/domain';
+import { formatCurrency } from '../../utils/helpers';
+import { calcScopeTotal } from '../../utils/pricing/engine';
+import { PreliminariesPanel, getPreliminariesAmount } from './PreliminariesPanel';
+import { RateSourceBadge } from './RateSourceBadge';
+
+type Props = { scopes: QuoteScope[]; setScopes: (next: QuoteScope[]) => void; preliminaries: PreliminariesSettings; setPreliminaries: (v: PreliminariesSettings) => void; ohPct: number; setOhPct: (v: number) => void; profitPct: number; setProfitPct: (v: number) => void; contingencyPct: number; setContingencyPct: (v: number) => void };
+
+export default function PricingStep({ scopes, setScopes, preliminaries, setPreliminaries, ohPct, setOhPct, profitPct, setProfitPct, contingencyPct, setContingencyPct }: Props) {
+  const tradeCost = scopes.reduce((sum, scope) => sum + calcScopeTotal(scope), 0);
+  const preliminariesAmount = getPreliminariesAmount(preliminaries, tradeCost);
+
+  const updateScope = (scopeIndex: number, next: QuoteScope) => {
+    setScopes(scopes.map((scope, index) => (index === scopeIndex ? next : scope)));
+  };
+
+  const updateStageCost = (scopeIndex: number, stageIndex: number, cost: number) => {
+    const scope = scopes[scopeIndex];
+    const stages = scope.stages.map((stage, index) => index === stageIndex ? { ...stage, cost } : stage);
+    updateScope(scopeIndex, { ...scope, stages });
+  };
+
+  const updateStageMeta = (scopeIndex: number, stageIndex: number, costType: PricingSourceMeta['costType']) => {
+    const scope = scopes[scopeIndex];
+    const stages = scope.stages.map((stage, index) => index === stageIndex ? { ...stage, pricingSource: { ...(stage.pricingSource || defaultMeta(stage.cost)), costType } } : stage);
+    updateScope(scopeIndex, { ...scope, stages });
+  };
+
+  const updateParametricItem = (scopeIndex: number, itemIndex: number, patch: Partial<ParametricItem>) => {
+    const scope = scopes[scopeIndex];
+    const items = (scope.parametricItems || []).map((item, index) => index === itemIndex ? { ...item, ...patch } : item);
+    updateScope(scopeIndex, { ...scope, parametricItems: items });
+  };
+
+  const updateItemCostType = (scopeIndex: number, itemIndex: number, costType: PricingSourceMeta['costType']) => {
+    const scope = scopes[scopeIndex];
+    const items = (scope.parametricItems || []).map((item, index) => index === itemIndex ? { ...item, pricingSource: { ...(item.pricingSource || defaultMeta(item.rate)), costType } } : item);
+    updateScope(scopeIndex, { ...scope, parametricItems: items });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div><h3 className="text-lg font-semibold text-slate-900">Pricing & Margins</h3><p className="text-sm text-slate-500 mt-1">Adjust overhead, profit and contingency margins.</p></div>
+      <div className="grid grid-cols-3 gap-4">
+        <div><label className="text-sm font-medium text-slate-700">Overhead %</label><input type="number" value={ohPct} onChange={(e) => setOhPct(Number(e.target.value))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" /></div>
+        <div><label className="text-sm font-medium text-slate-700">Profit %</label><input type="number" value={profitPct} onChange={(e) => setProfitPct(Number(e.target.value))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" /></div>
+        <div><label className="text-sm font-medium text-slate-700">Contingency %</label><input type="number" value={contingencyPct} onChange={(e) => setContingencyPct(Number(e.target.value))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" /></div>
+      </div>
+      <PreliminariesPanel settings={preliminaries} baseTradeCost={tradeCost} onChange={setPreliminaries} />
+      <div className="space-y-4">
+        {scopes.map((scope, scopeIndex) => (
+          <div key={scope.id} className="rounded-xl border border-slate-200 p-4">
+            <div className="flex items-center justify-between">
+              <h4 className="font-semibold text-slate-900">{scope.categoryLabel}</h4>
+              <span className="font-semibold text-slate-900">{formatCurrency(calcScopeTotal(scope))}</span>
+            </div>
+
+            {scope.stages.length > 0 && (
+              <div className="mt-3 overflow-hidden rounded-lg border border-slate-200">
+                <div className="grid grid-cols-[1fr_120px_130px] gap-2 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <span>Stage</span><span>Trade</span><span className="text-right">Cost</span>
+                </div>
+                {scope.stages.map((stage, stageIndex) => (
+                  <div key={`${stage.name}-${stageIndex}`} className="grid grid-cols-[1fr_120px_130px] items-center gap-2 border-t border-slate-200 px-3 py-2 text-sm">
+                    <div>
+                      <p className="font-medium text-slate-800">{stage.name}</p>
+                      {stage.description && <p className="text-xs text-slate-500">{stage.description}</p>}
+                      <RateSourceBadge meta={stage.pricingSource} onCostTypeChange={(costType) => updateStageMeta(scopeIndex, stageIndex, costType)} />
+                    </div>
+                    <span className="text-slate-500">{stage.trade}</span>
+                    <input type="number" value={stage.cost || 0} onChange={(e) => updateStageCost(scopeIndex, stageIndex, Number(e.target.value))} className="rounded-lg border border-slate-300 px-2 py-1 text-right text-sm" />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {(scope.parametricItems || []).length > 0 && (
+              <div className="mt-3 overflow-hidden rounded-lg border border-slate-200">
+                <div className="grid grid-cols-[1fr_90px_110px_120px] gap-2 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <span>BoQ item</span><span className="text-right">Qty</span><span className="text-right">Rate</span><span className="text-right">Total</span>
+                </div>
+                {(scope.parametricItems || []).map((item, itemIndex) => (
+                  <div key={item.id} className="grid grid-cols-[1fr_90px_110px_120px] items-center gap-2 border-t border-slate-200 px-3 py-2 text-sm">
+                    <span className="font-medium text-slate-800">{item.label}<RateSourceBadge meta={item.pricingSource} onCostTypeChange={(costType) => updateItemCostType(scopeIndex, itemIndex, costType)} /></span>
+                    <input type="number" value={item.quantity} onChange={(e) => updateParametricItem(scopeIndex, itemIndex, { quantity: Number(e.target.value) })} className="rounded-lg border border-slate-300 px-2 py-1 text-right text-sm" />
+                    <input type="number" value={item.rate} onChange={(e) => updateParametricItem(scopeIndex, itemIndex, { rate: Number(e.target.value) })} className="rounded-lg border border-slate-300 px-2 py-1 text-right text-sm" />
+                    <span className="text-right font-semibold text-slate-800">{formatCurrency(item.rate * item.quantity)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-xl border border-slate-200 p-4 space-y-2">
+        <hr className="border-slate-200" />
+        <div className="flex justify-between text-sm"><span>Trade Cost Total</span><span>{formatCurrency(tradeCost)}</span></div>
+        <div className="flex justify-between text-sm"><span>Preliminaries</span><span>{formatCurrency(preliminariesAmount)}</span></div>
+        <div className="flex justify-between text-sm font-bold"><span>Direct Cost incl. Preliminaries</span><span>{formatCurrency(tradeCost + preliminariesAmount)}</span></div>
+      </div>
+    </div>
+  );
+}
+
+function defaultMeta(baseRate: number): PricingSourceMeta {
+  return {
+    source: 'Manual override',
+    sourceType: 'manual',
+    costType: 'composite',
+    baseRate,
+    gstIncluded: false,
+    preliminariesIncluded: false,
+    confidence: 'benchmark_unverified',
+  };
+}
+
+
+===== FILE: src/components/variationBuilder/RateSourceBadge.tsx =====
+import type { PricingSourceMeta } from '../../types/domain';
+import { formatCurrency } from '../../utils/helpers';
+
+type Props = {
+  meta?: PricingSourceMeta;
+  onCostTypeChange?: (costType: PricingSourceMeta['costType']) => void;
+};
+
+const COST_TYPES: PricingSourceMeta['costType'][] = [
+  'composite',
+  'material_only',
+  'labour_only',
+  'pc_value',
+  'hire',
+  'provision',
+];
+
+export function RateSourceBadge({ meta, onCostTypeChange }: Props) {
+  if (!meta) {
+    return <p className="mt-1 text-[11px] text-amber-600">Manual or category default rate - source not verified</p>;
+  }
+
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+      <span className="rounded-full bg-blue-50 px-2 py-0.5 font-medium text-blue-700">{meta.source}</span>
+      <select
+        value={meta.costType}
+        onChange={(event) => onCostTypeChange?.(event.target.value as PricingSourceMeta['costType'])}
+        className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px]"
+      >
+        {COST_TYPES.map((type) => <option key={type} value={type}>{type.replace('_', ' ')}</option>)}
+      </select>
+      {meta.escalatedRate && <span>{formatCurrency(meta.baseRate)} base to {formatCurrency(meta.escalatedRate)}</span>}
+      {meta.escalationFactor && <span>Esc. x{meta.escalationFactor.toFixed(3)}</span>}
+      <span>{meta.gstIncluded ? 'GST incl.' : 'GST excl.'}</span>
+      <span>{meta.confidence.replace('_', ' ')}</span>
+    </div>
+  );
+}
+
+===== FILE: src/components/variationBuilder/ReviewStep.tsx =====
+import type { QuotePricing, QuoteScope } from '../../types/domain';
+import type { TradeAnalysis } from '../../utils/ai/tradeAnalyser';
+import { getEstimatorReviewFlags, type EstimatorReviewFlag } from '../../utils/estimatorReview';
+import { formatCurrency } from '../../utils/helpers';
+import { calcScopeTotal } from '../../utils/pricing/engine';
+
+type Props = { scopes: QuoteScope[]; pricing: QuotePricing; ohPct: number; profitPct: number; contingencyPct: number; analysisFallback?: boolean; tradeAnalyses?: TradeAnalysis[] };
+
+export function ReviewStep({ scopes, pricing, ohPct, profitPct, contingencyPct, analysisFallback, tradeAnalyses = [] }: Props) {
+  const reviewFlags = getEstimatorReviewFlags(scopes, pricing, { analysisFallback, tradeAnalyses, contingencyPct });
+  return (
+    <div className="space-y-6">
+      <div><h3 className="text-lg font-semibold text-slate-900">Review</h3><p className="text-sm text-slate-500 mt-1">Final review before saving.</p></div>
+      <EstimatorReviewPanel flags={reviewFlags} />
+      <div className="space-y-3">
+        {scopes.map((scope) => { const scopeTotal = calcScopeTotal(scope); return (
+          <div key={scope.id} className="rounded-xl border border-slate-200 p-4">
+            <div className="flex items-start justify-between"><div><h4 className="font-medium text-slate-900">{scope.categoryLabel}</h4><p className="text-sm text-slate-500 mt-1">{scope.description}</p></div><span className="text-sm font-medium text-slate-700">{formatCurrency(scopeTotal)}</span></div>
+            {scope.stages.length > 0 && (<div className="mt-3 space-y-1">{scope.stages.map((stage, i) => (<div key={i} className="flex justify-between text-sm text-slate-600"><span>{stage.name} <span className="text-xs text-slate-400">({stage.trade})</span></span><span>{formatCurrency(stage.cost)}</span></div>))}</div>)}
+            {scope.inclusions.length > 0 && (<div className="mt-2"><p className="text-xs font-medium text-emerald-600">Inclusions</p><ul className="text-xs text-slate-500 list-none mt-1 space-y-0.5">{scope.inclusions.map((item, i) => <li key={i}>✓ {item.text}</li>)}</ul></div>)}
+            {scope.exclusions.length > 0 && (<div className="mt-2"><p className="text-xs font-medium text-red-500">Exclusions</p><ul className="text-xs text-slate-500 list-none mt-1 space-y-0.5">{scope.exclusions.map((item, i) => <li key={i}>✗ {item.text}</li>)}</ul></div>)}
+          </div>); })}
+      </div>
+      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-2 text-sm">
+        <div className="flex justify-between"><span className="text-slate-600">Trade Cost</span><span className="font-medium">{formatCurrency(pricing.tradeCost)}</span></div>
+        <div className="flex justify-between"><span className="text-slate-600">Overhead ({ohPct}%)</span><span className="font-medium">{formatCurrency(pricing.overheadAmount)}</span></div>
+        <div className="flex justify-between"><span className="text-slate-600">Profit ({profitPct}%)</span><span className="font-medium">{formatCurrency(pricing.profitAmount)}</span></div>
+        <div className="flex justify-between"><span className="text-slate-600">Contingency ({contingencyPct}%)</span><span className="font-medium">{formatCurrency(pricing.contingencyAmount)}</span></div>
+        <hr className="border-blue-200" />
+        <div className="flex justify-between"><span className="text-slate-600">Subtotal (excl. GST)</span><span className="font-medium">{formatCurrency(pricing.subtotalExclGst)}</span></div>
+        <div className="flex justify-between"><span className="text-slate-600">GST (10%)</span><span className="font-medium">{formatCurrency(pricing.gstAmount)}</span></div>
+        <hr className="border-blue-200" />
+        <div className="flex justify-between text-base"><span className="font-bold text-slate-900">Total (incl. GST)</span><span className="font-bold text-blue-700">{formatCurrency(pricing.total)}</span></div>
+      </div>
+    </div>
+  );
+}
+
+function EstimatorReviewPanel({ flags }: { flags: EstimatorReviewFlag[] }) {
+  if (flags.length === 0) return (<div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">Estimator review clear. No pricing, quantity or scope warnings detected.</div>);
+  const severityClass: Record<EstimatorReviewFlag['severity'], string> = { critical: 'border-red-200 bg-red-50 text-red-800', warning: 'border-amber-200 bg-amber-50 text-amber-800', info: 'border-blue-200 bg-blue-50 text-blue-800' };
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4"><div className="mb-3 flex items-center justify-between"><h4 className="text-sm font-semibold text-slate-900">Estimator Review Flags</h4><span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{flags.length} item{flags.length === 1 ? '' : 's'}</span></div>
+      <div className="space-y-2">{flags.map((flag) => (<div key={flag.id} className={`rounded-lg border px-3 py-2 text-sm ${severityClass[flag.severity]}`}><div className="flex items-start justify-between gap-3"><div><p className="font-medium">{flag.title}</p><p className="mt-0.5 text-xs opacity-90">{flag.message}</p></div>{flag.categoryLabel && <span className="shrink-0 text-xs opacity-75">{flag.categoryLabel}</span>}</div></div>))}</div>
+    </div>
+  );
+}
+
+
+===== FILE: src/components/variationBuilder/ScopeDetailEditor.tsx =====
+import { useMemo } from 'react';
+import type { ParametricItem, QuoteScope } from '../../types/domain';
+import type { TradeAnalysis } from '../../utils/ai/tradeAnalyser';
+import { getCategoryById } from '../../utils/categories/extended';
+import { calcScopeTotal } from '../../utils/pricing/engine';
+import { hasParametricUnits } from '../../utils/pricing/parametricUnits';
+import { formatCurrency } from '../../utils/helpers';
+import { CategoryQuestions } from './CategoryQuestions';
+import { EditableList } from './EditableList';
+import ParametricEditor from './ParametricEditor';
+import { PhaseBoqPanel } from './PhaseBoqPanel';
+import { ScopeDimensions } from './ScopeDimensions';
+import { StageListEditor } from './StageListEditor';
+import { groupBoqByPhase } from './phaseGrouping';
+
+type Props = { scope: QuoteScope; index: number; tradeAnalysis?: TradeAnalysis; onChange: (next: QuoteScope) => void };
+
+export function ScopeDetailEditor({ scope, index, tradeAnalysis, onChange }: Props) {
+  void tradeAnalysis;
+  const update = (patch: Partial<QuoteScope>) => onChange({ ...scope, ...patch });
+  const setParametric = (items: ParametricItem[]) => update({ parametricItems: items });
+  const category = getCategoryById(scope.categoryId);
+  const total = calcScopeTotal(scope);
+  const phaseGroups = useMemo(() => groupBoqByPhase(scope.categoryId, scope.stages, scope.parametricItems || []), [scope.categoryId, scope.parametricItems, scope.stages]);
+
+  return (
+    <div className="space-y-3 rounded-xl border border-slate-200 p-4">
+      <div className="flex items-center justify-between">
+        <h3 className="flex items-center gap-2 font-semibold"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-xs text-white">{index + 1}</span>{scope.categoryLabel}</h3>
+        {total > 0 && <span className="text-sm font-medium text-slate-500">Subtotal: {formatCurrency(total)}</span>}
+      </div>
+      <div><label className="text-xs text-slate-500">Scope Description</label><textarea value={scope.description} onChange={(e) => update({ description: e.target.value })} className="mt-1 min-h-[180px] w-full rounded-lg border border-slate-300 px-3 py-3 text-sm leading-relaxed" placeholder="Describe the scope of works…" /></div>
+      <CategoryQuestions scope={scope} onChange={onChange} />
+      <ScopeDimensions category={category} scope={scope} onChange={update} />
+      {(category?.usesParametric || hasParametricUnits(scope.categoryId)) && (<ParametricEditor categoryId={scope.categoryId} items={scope.parametricItems || []} onChange={setParametric} />)}
+      <PhaseBoqPanel phaseGroups={phaseGroups} />
+      <StageListEditor stages={scope.stages} onChange={(stages) => update({ stages })} />
+      <EditableList title="Inclusions" items={scope.inclusions} onChange={(inclusions) => update({ inclusions })} color="emerald" icon="✓" />
+      <EditableList title="Exclusions" items={scope.exclusions} onChange={(exclusions) => update({ exclusions })} color="red" icon="✗" />
+    </div>
+  );
+}
+
+
+===== FILE: src/components/variationBuilder/ScopeDimensions.tsx =====
+import type { QuoteScope } from '../../types/domain';
+import type { WorkCategory } from '../../utils/categories/types';
+import { DimensionInput } from './DimensionInput';
+import { needsAreaHeightOverride } from './scopePricing';
+
+type Props = { category: WorkCategory | undefined; scope: QuoteScope; onChange: (patch: Partial<QuoteScope>) => void };
+
+export function ScopeDimensions({ category, scope, onChange }: Props) {
+  const mode = category?.dimensionMode ?? 'area';
+  const setDim = (key: 'width' | 'length' | 'height', value: number) => onChange({ dimensions: { ...scope.dimensions, [key]: value } });
+  if (needsAreaHeightOverride(scope.categoryId)) return <DimensionGrid labels={['Area (m²)', 'Height (m)']} keys={['width', 'height']} scope={scope} setDim={setDim} />;
+  if (mode === 'none' || mode === 'item') return null;
+  if (mode === 'linear') return <DimensionGrid labels={['Length (m)']} keys={['width']} scope={scope} setDim={setDim} />;
+  if (mode === 'wall') return <DimensionGrid labels={['Perimeter (m)', 'Height (m)']} keys={['width', 'height']} scope={scope} setDim={setDim} />;
+  if (mode === 'roof') return <DimensionGrid labels={['Width (m)', 'Length (m)']} keys={['width', 'length']} scope={scope} setDim={setDim} />;
+  if (mode === 'room') return <DimensionGrid labels={['Width (m)', 'Length (m)', 'Height (m)']} keys={['width', 'length', 'height']} scope={scope} setDim={setDim} />;
+  return <DimensionGrid labels={['Width (m)', 'Length (m)', 'Height (m)']} keys={['width', 'length', 'height']} scope={scope} setDim={setDim} />;
+}
+
+function DimensionGrid({ labels, keys, scope, setDim }: { labels: string[]; keys: Array<'width' | 'length' | 'height'>; scope: QuoteScope; setDim: (key: 'width' | 'length' | 'height', value: number) => void }) {
+  const cols = keys.length === 3 ? 'grid-cols-3' : keys.length === 2 ? 'grid-cols-2' : 'grid-cols-1';
+  return <div className={`grid ${cols} gap-3`}>{keys.map((key, index) => <DimensionInput key={key} label={labels[index]} value={scope.dimensions[key]} onChange={(value) => setDim(key, value)} />)}</div>;
+}
+
+
+===== FILE: src/components/variationBuilder/ScopeInputPanel.tsx =====
+import { AlertCircle, CheckCircle2, Loader2, Sparkles, Zap } from 'lucide-react';
+import type { ReactNode } from 'react';
+
+type Props = { documentType: 'quote' | 'variation'; scopeInput: string; setScopeInput: (value: string) => void; geminiKey: string; setGeminiKey: (value: string) => void; apiPolishing: boolean; isAnalysing: boolean; varRefQuote: string; setVarRefQuote: (value: string) => void; varReason: string; setVarReason: (value: string) => void; approvedQuotes: Array<{ id: string; title: string }>; lastAiModel: string; recogniseFeedback?: string; analysisFallback: boolean; hasTradeAnalyses: boolean; keyRestored?: boolean; onRecognise: () => void; onPolish: () => Promise<void> };
+
+export function ScopeInputPanel({ documentType, scopeInput, setScopeInput, geminiKey, setGeminiKey, apiPolishing, isAnalysing, varRefQuote, setVarRefQuote, varReason, setVarReason, approvedQuotes, lastAiModel, recogniseFeedback, analysisFallback, hasTradeAnalyses, keyRestored, onRecognise, onPolish }: Props) {
+  return (
+    <div className="space-y-5">
+      {documentType === 'variation' && (<Card><h3 className="font-semibold text-amber-900">Variation Details</h3><div className="mt-3 space-y-3"><select value={varRefQuote} onChange={(e) => setVarRefQuote(e.target.value)} className="w-full rounded-lg border border-amber-300 px-3 py-2 text-sm"><option value="">Reference Quote...</option>{approvedQuotes.map((q) => (<option key={q.id} value={q.id}>{q.title}</option>))}</select><select value={varReason} onChange={(e) => setVarReason(e.target.value)} className="w-full rounded-lg border border-amber-300 px-3 py-2 text-sm"><option value="">Reason for Change...</option>{['Client Request', 'Site Condition', 'Design Change', 'Compliance', 'Other'].map((r) => (<option key={r} value={r}>{r}</option>))}</select></div></Card>)}
+      <div className="space-y-3">
+        <label className="block space-y-1"><span className="text-sm font-medium text-slate-700">Describe the scope of works</span><textarea value={scopeInput} onChange={(e) => setScopeInput(e.target.value)} placeholder="Paste or write the full scope here." rows={8} className="w-full resize-y rounded-xl border border-slate-300 px-4 py-3 text-sm leading-relaxed outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" style={{ minHeight: '220px' }} /></label>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={onRecognise} disabled={isAnalysing || !scopeInput.trim()} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">{isAnalysing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}{isAnalysing ? 'Analysing…' : 'Recognise Categories'}</button>
+          {geminiKey && (<button type="button" onClick={onPolish} disabled={apiPolishing || !scopeInput.trim()} className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-2 text-sm text-white hover:bg-purple-700 disabled:opacity-50"><Sparkles className="h-4 w-4" />{apiPolishing ? 'Polishing…' : 'Polish with AI'}</button>)}
+          {recogniseFeedback && (<span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-xs text-blue-700"><CheckCircle2 className="h-3.5 w-3.5" /> {recogniseFeedback}</span>)}
+          {analysisFallback && hasTradeAnalyses && (<span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs text-amber-700"><AlertCircle className="h-3.5 w-3.5" /> Keyword fallback — add Gemini key for pre-filled quantities</span>)}
+        </div>
+        {geminiKey ? (<div className="flex flex-wrap items-center gap-2 text-xs"><span className="rounded-full bg-green-100 px-2 py-0.5 text-green-700">✨ AI Key Active</span>{keyRestored && <span className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-700">Restored from previous session</span>}{lastAiModel && <span className="text-slate-400">Last used: {lastAiModel}</span>}<button type="button" onClick={() => setGeminiKey('')} className="ml-auto text-slate-400 underline hover:text-red-500">Clear key</button></div>
+        ) : (<Card><label className="text-xs font-medium text-slate-600">Gemini API Key — unlocks pre-filled quantities per trade</label><input value={geminiKey} onChange={(e) => setGeminiKey(e.target.value)} placeholder="Paste your Gemini API key…" className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs" /><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-xs text-blue-500 hover:underline">Get free API key from Google AI Studio →</a></Card>)}
+      </div>
+    </div>
+  );
+}
+
+function Card({ children }: { children: ReactNode }) {
+  return <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">{children}</div>;
+}
+
+
+===== FILE: src/components/variationBuilder/ScopeStep.tsx =====
+import { useMemo } from 'react';
+import type { QuoteScope } from '../../types/domain';
+import type { TradeAnalysis } from '../../utils/ai/tradeAnalyser';
+import { AddedScopesPanel } from './AddedScopesPanel';
+import { ScopeInputPanel } from './ScopeInputPanel';
+import { TradeAnalysisPanel } from './TradeAnalysisPanel';
+import { CategoryBrowserPanel } from './CategoryBrowserPanel';
+
+type CategoryOption = { id: string; label: string };
+type GroupedCategories = Record<string, CategoryOption[]>;
+type Recognition = { categoryId: string; label: string; confidence: number };
+
+type Props = { documentType: 'quote' | 'variation'; scopeInput: string; setScopeInput: (value: string) => void; selectedCategoryId?: string; setSelectedCategoryId: (value: string) => void; recognised?: Recognition[]; tradeAnalyses: TradeAnalysis[]; isAnalysing: boolean; analysisFallback: boolean; showCategoryBrowser: boolean; setShowCategoryBrowser: (value: boolean) => void; groupedCategories: GroupedCategories; scopes: QuoteScope[]; geminiKey: string; setGeminiKey: (value: string) => void; apiPolishing: boolean; varRefQuote: string; setVarRefQuote: (value: string) => void; varReason: string; setVarReason: (value: string) => void; approvedQuotes: Array<{ id: string; title: string }>; lastAiModel: string; recogniseFeedback?: string; keyRestored?: boolean; onRecognise: () => void; onPolish: () => Promise<void>; onAddScope: (categoryId: string) => void; onRemoveScope: (index: number) => void; onAddAll: () => void; onAcceptSuggestion: (categoryId: string, unitId: string) => void };
+
+export function ScopeStep({ documentType, scopeInput, setScopeInput, selectedCategoryId, setSelectedCategoryId, recognised, tradeAnalyses, isAnalysing, analysisFallback, showCategoryBrowser, setShowCategoryBrowser, groupedCategories, scopes, geminiKey, setGeminiKey, apiPolishing, varRefQuote, setVarRefQuote, varReason, setVarReason, approvedQuotes, lastAiModel, recogniseFeedback, keyRestored, onRecognise, onPolish, onAddScope, onRemoveScope, onAddAll, onAcceptSuggestion }: Props) {
+  void selectedCategoryId; void recognised;
+  const addedIds = useMemo(() => scopes.map((scope) => scope.categoryId), [scopes]);
+  const handleRemoveByCategory = (categoryId: string) => { const index = scopes.findIndex((scope) => scope.categoryId === categoryId); if (index >= 0) onRemoveScope(index); };
+
+  return (
+    <div className="space-y-5">
+      <ScopeInputPanel documentType={documentType} scopeInput={scopeInput} setScopeInput={setScopeInput} geminiKey={geminiKey} setGeminiKey={setGeminiKey} apiPolishing={apiPolishing} isAnalysing={isAnalysing} varRefQuote={varRefQuote} setVarRefQuote={setVarRefQuote} varReason={varReason} setVarReason={setVarReason} approvedQuotes={approvedQuotes} lastAiModel={lastAiModel} recogniseFeedback={recogniseFeedback} analysisFallback={analysisFallback} hasTradeAnalyses={tradeAnalyses.length > 0} keyRestored={keyRestored} onRecognise={onRecognise} onPolish={onPolish} />
+      <TradeAnalysisPanel tradeAnalyses={tradeAnalyses} addedIds={addedIds} onAddScope={onAddScope} onRemoveByCategory={handleRemoveByCategory} onAddAll={onAddAll} setSelectedCategoryId={setSelectedCategoryId} onAcceptSuggestion={onAcceptSuggestion} />
+      <CategoryBrowserPanel showCategoryBrowser={showCategoryBrowser} setShowCategoryBrowser={setShowCategoryBrowser} groupedCategories={groupedCategories} addedIds={addedIds} onToggleCategory={(categoryId, added) => { if (added) handleRemoveByCategory(categoryId); else onAddScope(categoryId); }} />
+      <AddedScopesPanel scopes={scopes} onRemoveScope={handleRemoveByCategory} />
+    </div>
+  );
+}
+
+
+===== FILE: src/components/variationBuilder/StageListEditor.tsx =====
+import { useState } from 'react';
+import { GripVertical, Plus, Trash2 } from 'lucide-react';
+import type { JobStage } from '../../types/domain';
+
+type Props = { stages: JobStage[]; onChange: (stages: JobStage[]) => void };
+
+export function StageListEditor({ stages, onChange }: Props) {
+  const [showAddStage, setShowAddStage] = useState(false);
+  const [draft, setDraft] = useState({ name: '', trade: '', cost: 0, duration: 1 });
+  const updateStage = (index: number, patch: Partial<JobStage>) => { const next = [...stages]; next[index] = { ...next[index], ...patch }; onChange(next); };
+  const handleAddStage = () => { if (!draft.name.trim()) return; onChange([...stages, { name: draft.name.trim(), trade: draft.trade.trim() || 'General', cost: draft.cost, duration: draft.duration, description: draft.name.trim(), status: 'not-started' }]); setDraft({ name: '', trade: '', cost: 0, duration: 1 }); setShowAddStage(false); };
+
+  return (
+    <div className="space-y-1">
+      <h4 className="mb-2 text-sm font-medium text-slate-700">Stages / Trades ({stages.length})</h4>
+      {stages.map((stage, index) => (
+        <div key={index} className="group flex items-center gap-2 rounded-lg bg-slate-50 p-2 text-sm">
+          <GripVertical className="h-3 w-3 shrink-0 text-slate-300" />
+          <input value={stage.name} onChange={(e) => updateStage(index, { name: e.target.value, description: e.target.value })} className="min-w-0 flex-1 rounded border-0 bg-transparent px-1 py-0.5 font-medium text-slate-900 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300" />
+          <input value={stage.trade} onChange={(e) => updateStage(index, { trade: e.target.value })} className="w-24 rounded border-0 bg-transparent px-1 py-0.5 text-xs text-slate-500 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300" />
+          <span className="text-xs text-slate-400">$</span>
+          <input type="number" value={stage.cost || 0} onChange={(e) => updateStage(index, { cost: Number(e.target.value) })} className="w-20 rounded border-0 bg-transparent px-1 py-0.5 text-right outline-none focus:bg-white focus:ring-1 focus:ring-blue-300" />
+          <input type="number" value={stage.duration} onChange={(e) => updateStage(index, { duration: Number(e.target.value) })} className="w-12 rounded border-0 bg-transparent px-1 py-0.5 text-center outline-none focus:bg-white focus:ring-1 focus:ring-blue-300" />
+          <span className="text-xs text-slate-400">d</span>
+          <button onClick={() => onChange(stages.filter((_, i) => i !== index))} className="rounded p-1 text-slate-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-600 group-hover:opacity-100"><Trash2 className="h-3.5 w-3.5" /></button>
+        </div>
+      ))}
+      {showAddStage ? (
+        <div className="mt-2 space-y-2 rounded-lg border border-blue-200 bg-blue-50 p-3">
+          <div className="grid grid-cols-2 gap-2"><input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Stage name" className="rounded border border-slate-300 px-2 py-1.5 text-sm" autoFocus /><input value={draft.trade} onChange={(e) => setDraft({ ...draft, trade: e.target.value })} placeholder="Trade" className="rounded border border-slate-300 px-2 py-1.5 text-sm" /></div>
+          <div className="grid grid-cols-2 gap-2"><input type="number" value={draft.cost} onChange={(e) => setDraft({ ...draft, cost: Number(e.target.value) })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" /><input type="number" value={draft.duration} onChange={(e) => setDraft({ ...draft, duration: Number(e.target.value) })} className="rounded border border-slate-300 px-2 py-1.5 text-sm" /></div>
+          <div className="flex gap-2"><button onClick={handleAddStage} disabled={!draft.name.trim()} className="flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"><Plus className="h-3 w-3" /> Add Stage</button><button onClick={() => setShowAddStage(false)} className="rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100">Cancel</button></div>
+        </div>
+      ) : (<button onClick={() => setShowAddStage(true)} className="mt-2 flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700"><Plus className="h-3.5 w-3.5" /> Add Stage</button>)}
+    </div>
+  );
+}
+
+
+===== FILE: src/components/variationBuilder/TradeAnalysisPanel.tsx =====
+import { AlertCircle, Link2 } from 'lucide-react';
+import { formatCurrency } from '../../utils/helpers';
+import { getTradeChainSuggestions } from '../../utils/pricing/tradeChain';
+import type { TradeAnalysis } from '../../utils/ai/tradeAnalyser';
+
+export type TradeAnalysisPanelProps = { tradeAnalyses: TradeAnalysis[]; addedIds: string[]; onAddScope: (categoryId: string) => void; onRemoveByCategory: (categoryId: string) => void; onAddAll: () => void; setSelectedCategoryId: (value: string) => void; onAcceptSuggestion: (categoryId: string, unitId: string) => void };
+
+export function TradeAnalysisPanel({ tradeAnalyses, addedIds, onAddScope, onRemoveByCategory, onAddAll, setSelectedCategoryId, onAcceptSuggestion }: TradeAnalysisPanelProps) {
+  if (tradeAnalyses.length === 0) return null;
+  const pending = tradeAnalyses.filter((t) => !addedIds.includes(t.categoryId));
+  const added = tradeAnalyses.filter((t) => addedIds.includes(t.categoryId));
+
+  return (
+    <div className="space-y-3 rounded-xl border border-blue-200 bg-blue-50 p-4">
+      <div className="flex items-center justify-between"><h3 className="text-sm font-semibold text-blue-900">{tradeAnalyses.length} Trade{tradeAnalyses.length !== 1 ? 's' : ''} Detected</h3>{pending.length > 0 && (<button type="button" onClick={onAddAll} className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700">Add All {pending.length} Trades</button>)}</div>
+      <div className="space-y-2">
+        {tradeAnalyses.map((trade) => {
+          const isAdded = addedIds.includes(trade.categoryId);
+          const chainSuggestions = getTradeChainSuggestions(trade.categoryId, [...addedIds, ...tradeAnalyses.map((t) => t.categoryId)]);
+          return (
+            <div key={trade.categoryId} className={`rounded-lg border px-3 py-2.5 ${isAdded ? 'border-emerald-200 bg-emerald-50' : 'border-white bg-white shadow-sm'}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2"><span className="font-medium text-sm text-slate-900">{trade.label}</span><span className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${trade.confidence >= 0.8 ? 'bg-green-100 text-green-700' : trade.confidence >= 0.5 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>{Math.round(trade.confidence * 100)}%</span>{trade.items.length > 0 && (<span className="text-xs text-slate-500">{trade.items.length} items · {formatCurrency(trade.subtotal)}</span>)}</div>
+                  {trade.tradeScope && <p className="mt-0.5 text-xs text-slate-600 line-clamp-2">{trade.tradeScope}</p>}
+                  {trade.suggestions.length > 0 && (<div className="mt-2 rounded-lg border border-amber-100 bg-amber-50/80 px-2.5 py-2"><div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-amber-700">Suggested BoQ items</div><div className="flex flex-wrap gap-1.5">{trade.suggestions.map((item) => (<button key={`${trade.categoryId}-${item.unitId}`} type="button" onClick={() => onAcceptSuggestion(trade.categoryId, item.unitId)} className="rounded-full border border-amber-200 bg-white px-2 py-1 text-[11px] text-amber-800 hover:bg-amber-100" title={item.reason || 'Add suggested item'}>Add {item.label} · {item.quantity} {item.unit} · {formatCurrency(item.rate * item.quantity)}</button>))}</div></div>)}
+                </div>
+                <div className="ml-3 shrink-0">{isAdded ? (<button type="button" onClick={() => onRemoveByCategory(trade.categoryId)} className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-100">Remove</button>) : (<button type="button" onClick={() => { setSelectedCategoryId(trade.categoryId); onAddScope(trade.categoryId); }} className="rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-700">Add</button>)}</div>
+              </div>
+              {chainSuggestions.length > 0 && (<div className="mt-2 rounded-lg border border-blue-100 bg-blue-50/70 px-2.5 py-2"><div className="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-blue-800"><Link2 className="h-3.5 w-3.5" /> Trade Chain suggestions</div><div className="flex flex-wrap gap-1.5">{chainSuggestions.map((chain) => (<button key={`${trade.categoryId}-${chain.categoryId}`} type="button" onClick={() => { setSelectedCategoryId(chain.categoryId); onAddScope(chain.categoryId); }} className="rounded-full border border-blue-200 bg-white px-2 py-1 text-[11px] text-blue-700 hover:bg-blue-100" title={chain.reason}>Add {chain.label}</button>))}</div></div>)}
+            </div>
+          );
+        })}
+      </div>
+      {added.length > 0 && (<p className="text-xs text-emerald-700">✓ {added.length} trade{added.length !== 1 ? 's' : ''} added — edit quantities in Details step</p>)}
+      <div className="rounded-lg border border-dashed border-blue-200 bg-white/70 px-3 py-2 text-xs text-blue-800"><div className="flex items-start gap-2"><AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>These are priced trade scopes. Room templates must be added manually for planning guidance only.</span></div></div>
+    </div>
+  );
+}
+
+
+===== FILE: src/components/variationBuilder/answerPricing.ts =====
+import type { QuoteScope } from '../../types/domain';
+
+export type AnswerPricingAdjustment = { multiplier: number; note?: string };
+
+const PREMIUM_TERMS = ['premium', 'large-format', 'large format', 'stone', 'porcelain', 'frameless', 'wall-hung', 'in-wall', 'hydronic', 'ducted'];
+const MID_TERMS = ['mid-range', 'rectified', 'composite', 'colorbond', 'double', 'custom', 'relocation', 'full renovation'];
+const COMPLEX_TERMS = ['large', 'whole house', 'multiple rooms', 'difficult', 'structural', 'new opening'];
+const SIMPLE_TERMS = ['small', 'minimal prep', 'standard', 'reuse existing'];
+
+export function getAnswerPricingAdjustment(scope: QuoteScope): AnswerPricingAdjustment {
+  const answers = scope.questionAnswers || [];
+  if (answers.length === 0) return { multiplier: 1 };
+  let uplift = 0;
+  for (const answer of answers) {
+    const text = answer.answer.toLowerCase();
+    if (PREMIUM_TERMS.some((term) => text.includes(term))) uplift += 0.2;
+    else if (MID_TERMS.some((term) => text.includes(term))) uplift += 0.1;
+    else if (COMPLEX_TERMS.some((term) => text.includes(term))) uplift += 0.08;
+    else if (SIMPLE_TERMS.some((term) => text.includes(term))) uplift -= 0.03;
+  }
+  const multiplier = Math.max(0.85, Math.min(1.75, 1 + uplift));
+  if (Math.abs(multiplier - 1) < 0.01) return { multiplier: 1 };
+  return { multiplier, note: `Adjusted ${Math.round((multiplier - 1) * 100)}% from category answers` };
+}
+
+
+===== FILE: src/components/variationBuilder/buildVariationPayload.ts =====
+import type { PreliminariesSettings, Project, ProjectBaseline, QuotePricing, QuoteScope, Variation } from '../../types/domain';
+import type { TradeAnalysis } from '../../utils/ai/tradeAnalyser';
+import { getEstimatorReviewFlags } from '../../utils/estimatorReview';
+import { generateId } from '../../utils/helpers';
+
+type Args = { project: Project; documentType: 'quote' | 'variation'; scopes: QuoteScope[]; pricing: QuotePricing; existingQuotes: Variation[]; varRefQuote: string; varReason: string; baseline: ProjectBaseline; preliminaries?: PreliminariesSettings; tradeAnalyses?: TradeAnalysis[]; analysisFallback?: boolean; contingencyPct?: number };
+
+export function buildVariationPayload(args: Args): Variation {
+  const now = new Date().toISOString();
+  const nextVariationCount = args.existingQuotes.filter((v) => v.documentType === 'variation').length + 1;
+  const reviewFlags = getEstimatorReviewFlags(args.scopes, args.pricing, { tradeAnalyses: args.tradeAnalyses || [], analysisFallback: args.analysisFallback, contingencyPct: args.contingencyPct });
+  return {
+    id: generateId(),
+    title: args.documentType === 'quote' ? `Quote - ${args.project.name}` : `Variation ${args.scopes.map((s) => s.categoryLabel).join(', ')}`,
+    description: args.scopes.map((s) => s.description).filter(Boolean).join('\n\n'),
+    status: 'draft', documentType: args.documentType, scopes: args.scopes, pricing: args.pricing,
+    changeLog: [{ id: generateId(), action: 'created', timestamp: now, user: 'Builder', details: `${args.documentType} created with ${args.scopes.length} scope(s)` }],
+    createdAt: now, updatedAt: now, internalNotes: [], source: 'internal',
+    referenceQuoteId: args.documentType === 'variation' ? args.varRefQuote : undefined,
+    reasonForChange: args.documentType === 'variation' ? args.varReason : undefined,
+    variationNumber: args.documentType === 'variation' ? `V-${String(nextVariationCount).padStart(3, '0')}` : undefined,
+    costImpact: args.documentType === 'variation' ? 'additional' : undefined,
+    baseline: args.baseline, preliminaries: args.preliminaries, reviewFlags,
+  };
+}
+
+
+===== FILE: src/components/variationBuilder/builderDraft.ts =====
+const STORAGE_PREFIX = 'segal:builderDraft';
+import type { ProjectBaseline } from '../../types/domain';
+
+type Draft = { scopeInput: string; selectedCategoryId: string; baseline: ProjectBaseline };
+
+function getStorageKey(projectId: string, docType: string): string {
+  return `${STORAGE_PREFIX}:${projectId}:${docType}`;
+}
+
+export function saveBuilderDraft(projectId: string, docType: string, draft: Draft): void {
+  try { window.localStorage.setItem(getStorageKey(projectId, docType), JSON.stringify(draft)); } catch {}
+}
+
+export function loadBuilderDraft(projectId: string, docType: string): Draft | null {
+  try { const raw = window.localStorage.getItem(getStorageKey(projectId, docType)); return raw ? JSON.parse(raw) : null; } catch { return null; }
+}
+
+export function clearBuilderDraft(projectId: string, docType: string): void {
+  try { window.localStorage.removeItem(getStorageKey(projectId, docType)); } catch {}
+}
+
+
+===== FILE: src/components/variationBuilder/builderShared.ts =====
+import type { ProjectBaseline } from '../../types/domain';
+import { getAllCategories } from '../../utils/pricing/scopeRecogniser';
+
+export type Step = 'baseline' | 'scope' | 'details' | 'pricing' | 'review';
+
+export const GEMINI_KEY_STORAGE = 'segal:geminiApiKey';
+export const STEPS: Step[] = ['baseline', 'scope', 'details', 'pricing', 'review'];
+export const STEP_LABELS: Record<Step, string> = {
+  baseline: 'Project', scope: 'Scope', details: 'Details', pricing: 'Pricing', review: 'Review',
+};
+
+export function getDefaultBaseline(): ProjectBaseline {
+  return { totalAreaM2: 0, storeys: 'single', siteAccess: 'easy', ceilingHeightM: 2.4, notes: '' };
+}
+
+export function groupCategories() {
+  const groups: Record<string, Array<{ id: string; label: string }>> = {};
+  for (const category of getAllCategories()) {
+    if (!groups[category.group]) groups[category.group] = [];
+    groups[category.group].push({ id: category.id, label: category.label });
+  }
+  return groups;
+}
+
+export function moveStep(step: Step, setStep: (value: Step) => void, delta: number) {
+  const index = STEPS.indexOf(step);
+  const next = index + delta;
+  if (next >= 0 && next < STEPS.length) setStep(STEPS[next]);
+}
+
+export function readGeminiKey(projectKey?: string) {
+  if (typeof window === 'undefined') return projectKey || '';
+  try { return window.localStorage.getItem(GEMINI_KEY_STORAGE) || projectKey || ''; } catch { return projectKey || ''; }
+}
+
+
+===== FILE: src/components/variationBuilder/phaseGrouping.ts =====
+import type { JobStage, ParametricItem } from '../../types/domain';
+import { getUnitById } from '../../utils/pricing/parametricUnits';
+
+export type PhaseKey = 'preparation' | 'structure' | 'services' | 'finishes' | 'external';
+export const PHASE_ORDER: PhaseKey[] = ['preparation', 'structure', 'services', 'finishes', 'external'];
+export const PHASE_LABELS: Record<PhaseKey, string> = { preparation: 'Preparation', structure: 'Structure', services: 'Services', finishes: 'Finishes', external: 'External' };
+
+type PhaseEntry = { id: string; label: string; trade: string; cost: number; source: 'stage' | 'parametric' };
+
+const EXTERNAL_CATEGORY_IDS = new Set(['decking','fencing','concreting','pergola','landscaping','pools','paving','retainingWalls','roofing','roofRepairs','guttersFascia','cladding','rendering','windowsDoors']);
+const PREP_TOKENS = ['demo','demolition','remove','strip','prep','preparation','site prep'];
+const SERVICE_TRADES = ['plumbing','electrical','hvac','data','compliance'];
+const FINISH_TRADES = ['tiling','painting','waterproofing','flooring','plastering','cabinetry','insulation'];
+const STRUCTURE_TRADES = ['structural','concreting','carpentry','roofing'];
+
+function isPreparation(label: string, trade: string): boolean { return PREP_TOKENS.some((token) => `${label} ${trade}`.toLowerCase().includes(token)); }
+function isTradeIn(trade: string, list: string[]): boolean { return list.some((token) => trade.toLowerCase().includes(token)); }
+
+export function inferPhase(categoryId: string, label: string, trade: string): PhaseKey {
+  if (isPreparation(label, trade)) return 'preparation';
+  if (EXTERNAL_CATEGORY_IDS.has(categoryId)) return 'external';
+  if (isTradeIn(trade, SERVICE_TRADES)) return 'services';
+  if (isTradeIn(trade, FINISH_TRADES)) return 'finishes';
+  if (isTradeIn(trade, STRUCTURE_TRADES)) return 'structure';
+  return 'structure';
+}
+
+export function groupBoqByPhase(categoryId: string, stages: JobStage[], parametricItems: ParametricItem[]): Record<PhaseKey, PhaseEntry[]> {
+  const grouped: Record<PhaseKey, PhaseEntry[]> = { preparation: [], structure: [], services: [], finishes: [], external: [] };
+  for (const stage of stages) {
+    const phase = inferPhase(categoryId, stage.name, stage.trade);
+    grouped[phase].push({ id: `${stage.name}-${stage.trade}`, label: stage.name, trade: stage.trade, cost: stage.cost || 0, source: 'stage' });
+  }
+  for (const item of parametricItems) {
+    const unit = getUnitById(item.unitId);
+    const trade = unit?.trade || categoryId;
+    const phase: PhaseKey = (item.phase || unit?.phase) ?? inferPhase(categoryId, item.label, trade);
+    grouped[phase].push({ id: item.id, label: item.label, trade, cost: item.rate * item.quantity, source: 'parametric' });
+  }
+  return grouped;
+}
+
+
+===== FILE: src/components/variationBuilder/scopePricing.ts =====
+import type { ProjectBaseline, QuoteScope } from '../../types/domain';
+import { calculateStage } from '../../utils/pricing/quoteCalculator';
+import { getCategoryById } from '../../utils/categories/extended';
+import { resolveBenchmarkRate } from '../../utils/pricing/rawlinsonsBenchmarkResolver';
+import { getAnswerPricingAdjustment } from './answerPricing';
+
+const MANUAL_TEMPLATE_IDS = new Set(['bathroom', 'kitchen', 'laundry', 'toilet']);
+const HEIGHT_OVERRIDE_IDS = new Set(['painting', 'insulation', 'ceilings', 'cladding', 'rendering']);
+
+export function isManualTemplateCategory(categoryId: string): boolean {
+  return MANUAL_TEMPLATE_IDS.has(categoryId) || getCategoryById(categoryId)?.archetype === 'assembly';
+}
+
+export function isTradeOnlyCategory(categoryId: string): boolean {
+  const category = getCategoryById(categoryId);
+  return category ? category.archetype !== 'assembly' : false;
+}
+
+export function deriveScopeDimensions(categoryId: string, baseline: ProjectBaseline, current?: QuoteScope['dimensions']): QuoteScope['dimensions'] {
+  const category = getCategoryById(categoryId);
+  const area = Math.max(baseline.totalAreaM2 || 0, 0);
+  const height = current && current.height && current.height !== baseline.ceilingHeightM && current.height > 0 ? current.height : baseline.ceilingHeightM || 2.4;
+  const safeArea = area > 0 ? area : Math.max((current?.width || 0) * (current?.length || 0), 0);
+  const side = Math.max(Math.sqrt(safeArea || 1), 1);
+  const perimeter = Math.max(side * 4, 1);
+  const hasCurrent = Boolean((current?.width || 0) || (current?.length || 0) || (current?.height || 0));
+  if (hasCurrent) return { width: current?.width || 0, length: current?.length || 0, height };
+  if (HEIGHT_OVERRIDE_IDS.has(categoryId)) return { width: area, length: 1, height };
+  switch (category?.dimensionMode) {
+    case 'wall': return { width: perimeter, length: height, height };
+    case 'room': case 'roof': return { width: side, length: side, height };
+    case 'linear': return { width: perimeter, length: perimeter, height };
+    default: return { width: area, length: 1, height };
+  }
+}
+
+export function buildStageCost(categoryId: string, unit: 'area' | 'linear' | 'item' | 'allow', rate: number, dimensions: QuoteScope['dimensions'], stageName = ''): number {
+  const benchmark = resolveBenchmarkRate(categoryId, stageName, unit);
+  const effectiveRate = benchmark?.meta.costType === 'material_only' ? rate : (benchmark?.rate ?? rate);
+  if (unit === 'area' && (categoryId === 'painting' || categoryId === 'cladding' || categoryId === 'rendering')) {
+    const footprint = Math.max(dimensions.width * dimensions.length, 0);
+    const side = Math.max(Math.sqrt(footprint || 1), 1);
+    const wallArea = side * 4 * Math.max(dimensions.height || 2.4, 2.4);
+    if (categoryId === 'painting') return Math.round(effectiveRate * (footprint + wallArea));
+    return Math.round(effectiveRate * wallArea);
+  }
+  return Math.round(calculateStage(effectiveRate, unit, dimensions));
+}
+
+export function syncScopePricing(scope: QuoteScope, baseline: ProjectBaseline): QuoteScope {
+  const category = getCategoryById(scope.categoryId);
+  if (!category) return scope;
+  const dimensions = deriveScopeDimensions(scope.categoryId, baseline, scope.dimensions);
+  if (isManualTemplateCategory(scope.categoryId)) return { ...scope, dimensions, stages: [] };
+  if (category.usesParametric && (scope.parametricItems || []).length > 0) return { ...scope, dimensions, stages: [] };
+  const answerAdjustment = getAnswerPricingAdjustment(scope);
+  const stages = category.stages.map((stage) => ({
+    name: stage.name, trade: stage.trade,
+    cost: Math.round(buildStageCost(scope.categoryId, stage.unit, stage.rate, dimensions, `${stage.name} ${stage.trade}`) * answerAdjustment.multiplier),
+    duration: stage.duration, description: stage.description, status: 'not-started' as const,
+    rateOverrideNote: answerAdjustment.note,
+    pricingSource: resolveBenchmarkRate(scope.categoryId, `${stage.name} ${stage.trade}`, stage.unit)?.meta,
+  }));
+  return { ...scope, dimensions, stages };
+}
+
+export function getTemplateDescription(label: string): string {
+  return `${label} is a manual room template only. Use individual trades for pricing, then keep this template for planning notes and room-specific questions.`;
+}
+
+export function needsAreaHeightOverride(categoryId: string): boolean {
+  return HEIGHT_OVERRIDE_IDS.has(categoryId);
+}
+
+export type TradeAnalysisItem = { unitId: string; label: string; unit: string; rate: number; quantity: number };
+export type TradeAnalysis = { categoryId: string; label: string; confidence: number; tradeScope: string; items: TradeAnalysisItem[]; subtotal: number };
+
+
+===== FILE: src/components/variationBuilder/useVariationBuilderController.ts =====
+import { useEffect, useMemo, useState } from 'react';
+import type { ParametricItem, PreliminariesSettings, Project, ProjectBaseline, QuoteScope, Variation } from '../../types/domain';
+import { analyseScope, type TradeAnalysis } from '../../utils/ai/tradeAnalyser';
+import { generateId } from '../../utils/helpers';
+import { calcBaselineAdjustment } from '../../utils/pricing/baselineMultipliers';
+import { calcScopesTotal } from '../../utils/pricing/engine';
+import { calculateQuote } from '../../utils/pricing/quoteCalculator';
+import { DEFAULT_PRELIMINARIES_PERCENT } from '../../utils/pricing/preliminaries';
+import { polishScopeWithAI } from '../../utils/services';
+import { buildVariationPayload } from './buildVariationPayload';
+import { clearBuilderDraft, loadBuilderDraft, saveBuilderDraft } from './builderDraft';
+import { GEMINI_KEY_STORAGE, getDefaultBaseline, groupCategories, readGeminiKey, type Step } from './builderShared';
+import { createScopeFromCategory } from '../../utils/createScopeFromCategory';
+import { syncScopePricing } from './scopePricing';
+
+type Args = { project: Project; documentType: 'quote' | 'variation'; existingQuotes: Variation[]; companyOH: number; companyProfit: number; initialVariation?: Variation; onSave: (variation: Variation) => void };
+
+export function useVariationBuilderController(args: Args) {
+  const savedDraft = args.initialVariation ? null : loadBuilderDraft(args.project.id, args.documentType);
+  const initialBaseline: ProjectBaseline = args.initialVariation?.baseline
+    ? { ...getDefaultBaseline(), ...args.initialVariation.baseline }
+    : savedDraft?.baseline ? { ...getDefaultBaseline(), ...savedDraft.baseline } : getDefaultBaseline();
+  const [step, setStep] = useState<Step>(args.initialVariation ? 'details' : 'baseline');
+  const [scopeInput, setScopeInput] = useState(savedDraft?.scopeInput || args.initialVariation?.description || '');
+  const [selectedCategoryId, setSelectedCategoryId] = useState(savedDraft?.selectedCategoryId || args.initialVariation?.scopes[0]?.categoryId || '');
+  const [showCategoryBrowser, setShowCategoryBrowser] = useState(false);
+  const [scopes, setScopes] = useState<QuoteScope[]>(args.initialVariation?.scopes || []);
+  const [ohPct, setOhPct] = useState(args.initialVariation?.pricing.overheadPercent ?? args.companyOH);
+  const [profitPct, setProfitPct] = useState(args.initialVariation?.pricing.profitPercent ?? args.companyProfit);
+  const [contingencyPct, setContingencyPct] = useState(args.initialVariation?.pricing.contingencyPercent ?? 10);
+  const [preliminaries, setPreliminaries] = useState<PreliminariesSettings>(args.initialVariation?.preliminaries || { enabled: true, mode: 'percent', percent: DEFAULT_PRELIMINARIES_PERCENT, amount: 0 });
+  const [varRefQuote, setVarRefQuote] = useState(args.initialVariation?.referenceQuoteId || '');
+  const [varReason, setVarReason] = useState(args.initialVariation?.reasonForChange || '');
+  const [baseline, setBaseline] = useState<ProjectBaseline>(initialBaseline);
+  const [geminiKey, setGeminiKey] = useState(() => readGeminiKey(args.project.geminiApiKey));
+  const [keyRestored, setKeyRestored] = useState(false);
+  const [apiPolishing, setApiPolishing] = useState(false);
+  const [lastAiModel, setLastAiModel] = useState('');
+  const [recogniseFeedback, setRecogniseFeedback] = useState('');
+  const [tradeAnalyses, setTradeAnalyses] = useState<TradeAnalysis[]>([]);
+  const [isAnalysing, setIsAnalysing] = useState(false);
+  const [analysisFallback, setAnalysisFallback] = useState(false);
+
+  useEffect(() => saveBuilderDraft(args.project.id, args.documentType, { scopeInput, selectedCategoryId, baseline }), [baseline, args.documentType, args.project.id, scopeInput, selectedCategoryId]);
+  useEffect(() => { try { const stored = window.localStorage.getItem(GEMINI_KEY_STORAGE); if (stored && stored === geminiKey) { setKeyRestored(true); setTimeout(() => setKeyRestored(false), 4000); } } catch {} }, []);
+  useEffect(() => { try { if (geminiKey) window.localStorage.setItem(GEMINI_KEY_STORAGE, geminiKey); else window.localStorage.removeItem(GEMINI_KEY_STORAGE); } catch {} }, [geminiKey]);
+  useEffect(() => setScopes((prev) => prev.map((scope) => syncScopePricing(scope, baseline))), [baseline]);
+
+  const groupedCategories = useMemo(groupCategories, []);
+  const approvedQuotes = args.existingQuotes.filter((q) => q.documentType === 'quote' && q.status === 'approved');
+  const rawTradeCost = useMemo(() => calcScopesTotal(scopes), [scopes]);
+  const baselineAdj = useMemo(() => calcBaselineAdjustment(baseline, rawTradeCost), [baseline, rawTradeCost]);
+  const preliminariesAmount = preliminaries.enabled
+    ? preliminaries.mode === 'fixed' ? preliminaries.amount : Math.round(rawTradeCost * (preliminaries.percent / 100))
+    : 0;
+  const pricing = calculateQuote(rawTradeCost + baselineAdj.totalAdjustment, ohPct, profitPct, contingencyPct, preliminariesAmount, preliminaries.enabled && preliminaries.mode === 'percent' ? preliminaries.percent : 0);
+  const canNext = step === 'baseline' ? baseline.totalAreaM2 > 0 : step === 'scope' ? scopes.length > 0 && (args.documentType === 'quote' || (Boolean(varRefQuote) && Boolean(varReason))) : true;
+
+  const flash = (message: string) => { setRecogniseFeedback(message); setTimeout(() => setRecogniseFeedback(''), 5000); };
+  const updateGeminiKey = (value: string) => {
+    setGeminiKey(value);
+    try {
+      if (value) window.localStorage.setItem(GEMINI_KEY_STORAGE, value);
+      else window.localStorage.removeItem(GEMINI_KEY_STORAGE);
+    } catch {}
+  };
+  const onScopeChange = (index: number, next: QuoteScope) => setScopes((prev) => prev.map((scope, i) => (i === index ? syncScopePricing(next, baseline) : scope)));
+  const onAddScope = (categoryId: string) => { setScopes((prev) => addScope(prev, categoryId, scopeInput, tradeAnalyses, baseline)); setSelectedCategoryId(categoryId); };
+  const onAddAll = () => setScopes((prev) => addAllScopes(prev, scopeInput, tradeAnalyses, baseline));
+  const onAcceptSuggestion = (categoryId: string, unitId: string) => {
+    const suggestion = tradeAnalyses.find((trade) => trade.categoryId === categoryId)?.suggestions.find((item) => item.unitId === unitId);
+    if (!suggestion) return;
+    setTradeAnalyses((prev) => promoteSuggestedItem(prev, categoryId, unitId));
+    setScopes((prev) => prev.map((scope) => scope.categoryId === categoryId ? addSuggestedItemToScope(scope, suggestion, baseline) : scope));
+  };
+  const onRecognise = () => recognise(scopeInput, baseline.totalAreaM2, geminiKey, setIsAnalysing, setTradeAnalyses, setAnalysisFallback, setLastAiModel, flash);
+  const onPolish = async () => polish(scopeInput, geminiKey, setApiPolishing, setScopeInput, setLastAiModel);
+  const handleSave = () => {
+    clearBuilderDraft(args.project.id, args.documentType);
+    const payload = buildVariationPayload({ ...args, scopes, pricing, varRefQuote, varReason, baseline, preliminaries, tradeAnalyses, analysisFallback, contingencyPct });
+    if (!args.initialVariation) {
+      args.onSave(payload);
+      return;
+    }
+
+    const now = new Date().toISOString();
+    args.onSave({
+      ...args.initialVariation,
+      title: payload.title || args.initialVariation.title,
+      description: payload.description,
+      scopes,
+      pricing,
+      referenceQuoteId: args.documentType === 'variation' ? varRefQuote : args.initialVariation.referenceQuoteId,
+      reasonForChange: args.documentType === 'variation' ? varReason : args.initialVariation.reasonForChange,
+      baseline,
+      preliminaries,
+      reviewFlags: payload.reviewFlags,
+      updatedAt: now,
+      changeLog: [
+        ...args.initialVariation.changeLog,
+        { id: generateId(), action: 'updated', timestamp: now, user: 'Builder', details: 'Quote updated in builder' },
+      ],
+    });
+  };
+
+  return { step, setStep, baseline, baselineAdj, canNext, handleSave, stepProps: { step, documentType: args.documentType, baseline, rawTradeCost, scopeInput, setScopeInput, selectedCategoryId, setSelectedCategoryId, tradeAnalyses, isAnalysing, analysisFallback, showCategoryBrowser, setShowCategoryBrowser, groupedCategories, scopes, geminiKey, setGeminiKey: updateGeminiKey, apiPolishing, varRefQuote, setVarRefQuote, varReason, setVarReason, approvedQuotes, lastAiModel, recogniseFeedback, keyRestored, pricing, preliminaries, setPreliminaries, ohPct, setOhPct, profitPct, setProfitPct, contingencyPct, setContingencyPct, setBaseline, setScopes, onScopeChange, onRecognise, onPolish, onAddScope, onAddAll, onAcceptSuggestion } };
+}
+
+function promoteSuggestedItem(analyses: TradeAnalysis[], categoryId: string, unitId: string): TradeAnalysis[] {
+  return analyses.map((trade) => {
+    if (trade.categoryId !== categoryId) return trade;
+    const suggestion = trade.suggestions.find((item) => item.unitId === unitId);
+    if (!suggestion || trade.items.some((item) => item.unitId === unitId)) return trade;
+    const items = [...trade.items, { ...suggestion, isPreFilled: true }];
+    return { ...trade, items, suggestions: trade.suggestions.filter((item) => item.unitId !== unitId), subtotal: items.reduce((sum, item) => sum + item.rate * item.quantity, 0) };
+  });
+}
+
+function addSuggestedItemToScope(scope: QuoteScope, suggestion: TradeAnalysis['suggestions'][number], baseline: ProjectBaseline): QuoteScope {
+  if ((scope.parametricItems || []).some((item) => item.unitId === suggestion.unitId)) return scope;
+  const nextItem: ParametricItem = { id: generateId(), unitId: suggestion.unitId, label: suggestion.label, unit: suggestion.unit as ParametricItem['unit'], rate: suggestion.rate, quantity: suggestion.quantity, notes: suggestion.reason };
+  return syncScopePricing({ ...scope, parametricItems: [...(scope.parametricItems || []), nextItem] }, baseline);
+}
+
+function addScope(prev: QuoteScope[], categoryId: string, input: string, analyses: TradeAnalysis[], baseline: ProjectBaseline) {
+  if (prev.some((scope) => scope.categoryId === categoryId)) return prev;
+  const next = createScopeFromCategory(categoryId, input, analyses.find((t) => t.categoryId === categoryId), baseline);
+  return next ? [...prev, next] : prev;
+}
+
+function addAllScopes(prev: QuoteScope[], input: string, analyses: TradeAnalysis[], baseline: ProjectBaseline) {
+  const existing = new Set(prev.map((scope) => scope.categoryId));
+  const nextScopes = analyses.filter((trade) => !existing.has(trade.categoryId)).map((trade) => createScopeFromCategory(trade.categoryId, input, trade, baseline)).filter(Boolean) as QuoteScope[];
+  return nextScopes.length > 0 ? [...prev, ...nextScopes] : prev;
+}
+
+async function recognise(input: string, area: number, key: string, setBusy: (v: boolean) => void, setTrades: (v: TradeAnalysis[]) => void, setFallback: (v: boolean) => void, setModel: (v: string) => void, flash: (v: string) => void) {
+  if (!input.trim()) return flash('Type a scope description first.');
+  setBusy(true); setTrades([]);
+  const result = await analyseScope(input, area, key || undefined);
+  setTrades(result.trades); setFallback(result.fallback);
+  if (result.model) setModel(result.model);
+  flash(result.trades.length === 0 ? 'No trades detected — try adding more detail to your scope.' : result.fallback ? `Found ${result.trades.length} trades (keyword fallback)` : `AI detected ${result.trades.length} trades with pre-filled items`);
+  setBusy(false);
+}
+
+async function polish(input: string, key: string, setBusy: (v: boolean) => void, setInput: (v: string) => void, setModel: (v: string) => void) {
+  if (!key || !input.trim()) return;
+  setBusy(true);
+  const result = await polishScopeWithAI(input, key);
+  setInput(result.text); if (result.model) setModel(result.model);
+  setBusy(false);
+}
+
+
+===== FILE: src/components/welcomeMessages.ts =====
+import { buildEmailSignature } from '../utils/company/signature';
+
+export type MessageType = 'gmail' | 'mail' | 'copy' | 'whatsapp' | 'sms';
+
+type WelcomeParams = {
+  customerName: string;
+  customerEmail: string;
+  projectName: string;
+  companyName: string;
+  companyAbn: string;
+  companyLicence: string;
+  companyEmail: string;
+  companyPhone: string;
+  portalUrl: string;
+  tempPassword: string;
+  type: MessageType;
+};
+
+export function buildWelcomeMessage(p: WelcomeParams): string {
+  const { customerName, customerEmail, projectName, companyName, companyAbn, companyLicence, companyEmail, companyPhone, portalUrl, tempPassword, type } = p;
+
+  if (type === 'whatsapp' || type === 'sms') {
+    return [
+      `Hi ${customerName},`, '', `Welcome to ${companyName}! Your project "${projectName}" is set up.`, '',
+      `View & download your quotation here: ${portalUrl}`, '', `Login: ${customerEmail}`, `Temp password: ${tempPassword}`, '',
+      `Questions? Call ${companyPhone} or reply here.`, '', `— ${companyName}`,
+    ].join('\n');
+  }
+
+  const lines = [
+    '─────────────────────────────────────────────',
+    `  ${companyName}`, `  ABN: ${companyAbn}  |  ${companyLicence}`,
+    `  📞 ${companyPhone}  |  ✉️ ${companyEmail}`,
+    '─────────────────────────────────────────────', '',
+    `Dear ${customerName},`, '',
+    `Thank you for choosing ${companyName}. We're delighted to welcome you and look forward to bringing your project to life.`, '',
+    `Your project "${projectName}" has been created in our system and we're ready to begin preparing your detailed quotation.`, '', '',
+    'YOUR PROJECT', '─────────────',
+    `  📋  Project:   ${projectName}`, `  👥  Client:    ${customerName}`, `  ✉️  Email:     ${customerEmail}`, '', '',
+    'YOUR ONLINE PORTAL', '──────────────────',
+    `We've set up a personal online portal where you can manage everything related to your project.`, '',
+    `  🌐  Portal:     ${portalUrl}`, `  ✉️  Login:      ${customerEmail}`, `  🔐  Password:   ${tempPassword}`, '',
+    'Please log in and update your password on your first visit.', '', '',
+    'WHAT HAPPENS NEXT', '──────────────────',
+    "  1.  We'll conduct a thorough assessment of your requirements",
+    "  2.  A detailed quotation will be prepared and sent to your portal",
+    "  3.  You'll receive a notification when it's ready to view",
+    "  4.  Review the quotation, then approve or request changes",
+    "  5.  Once approved, we'll schedule and keep you updated", '', '',
+    'THROUGH YOUR PORTAL YOU CAN', '────────────────────────────',
+    '  ✔  View and download quotation or variation documents',
+    '  ✔  Review a full breakdown of the scope of works',
+    '  ✔  Approve quotes with a digital signature',
+    '  ✔  Request a revised quotation',
+    '  ✔  Track variations and changes to scope',
+    '  ✔  View progress photos and stage updates',
+    '  ✔  Comunicate directly with your project team', '', '',
+    ...buildEmailSignature({
+      id: 'segal-build', name: companyName, abn: companyAbn, licence: companyLicence,
+      email: companyEmail, phone: companyPhone, websiteUrl: 'https://www.segalbuild.com.au',
+      logoUrl: '', defaultOverheadPercent: 12, defaultProfitPercent: 15,
+    }),
+    '─────────────────────────────────────────────',
+  ];
+
+  return lines.join('\n');
+}
+
+
+===== FILE: src/constants/companies.ts =====
+/* ─── Segal Build — Company Configurations ─── */
+import type { Company } from '../types/domain';
+
+export const COMPANIES: Company[] = [
+  {
+    id: 'segal-build',
+    name: 'Segal Build Pty Ltd',
+    abn: '89 644 915 702',
+    licence: 'CDB-U 68631 CCB-L 68632 | DB-U 47858 CB-L 41119',
+    phone: '0414 2222 03',
+    email: 'james@thesegals.com.au',
+    websiteUrl: 'https://www.segalbuild.com.au',
+    logoUrl:
+      'https://raw.githubusercontent.com/hersvami/segal-build-app/main/public/logos/segal-build.png',
+    defaultOverheadPercent: 12,
+    defaultProfitPercent: 15,
+  },
+  {
+    id: 'segval',
+    name: 'Segval',
+    abn: '22 334 455 667',
+    licence: '',
+    phone: '0416 460 164',
+    email: 'info@segval.com.au',
+    websiteUrl: 'https://www.segval.com.au',
+    logoUrl:
+      'https://raw.githubusercontent.com/hersvami/segal-build-app/main/public/logos/segval.png',
+    defaultOverheadPercent: 12,
+    defaultProfitPercent: 15,
+  },
+];
+
+export const getCompanyById = (id: string): Company =>
+  COMPANIES.find(c => c.id === id) || COMPANIES[0];
+
+
+===== FILE: src/index.css =====
+@import "tailwindcss";
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+
+===== FILE: src/logic/initialState.ts =====
+import { COMPANIES } from '../constants/companies';
+import type { AppState } from '../types/appState';
+
+export const APP_VERSION = '2.0';
+
+export function createInitialState(): AppState {
+  return {
+    version: APP_VERSION,
+    activeCompanyId: 'segal-build',
+    companies: COMPANIES,
+    projects: [],
+    activeProjectId: null,
+    variations: {},
+    activeVariationId: null,
+    uiState: {
+      view: 'welcome',
+      showProjectForm: false,
+      showWelcomeEmail: false,
+    },
+  };
+}
+
+===== FILE: src/logic/persistence.ts =====
+import type { AppState } from '../types/appState';
+import { APP_VERSION, createInitialState } from './initialState';
+
+const STORAGE_KEY = 'segal-build-v2.0';
+const STORAGE_BACKUP_KEY = 'segal-build-latest';
+
+export function loadState(): AppState {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(STORAGE_BACKUP_KEY);
+    if (!raw) return createInitialState();
+    return normalizeState(JSON.parse(raw) as AppState);
+  } catch {
+    return createInitialState();
+  }
+}
+
+export function saveState(state: AppState) {
+  try {
+    const payload = JSON.stringify(normalizeState(state));
+    localStorage.setItem(STORAGE_KEY, payload);
+    localStorage.setItem(STORAGE_BACKUP_KEY, payload);
+  } catch {
+    /* storage full */
+  }
+}
+
+export function normalizeState(state: AppState): AppState {
+  const initial = createInitialState();
+  const projects = Array.isArray(state.projects) ? state.projects : [];
+  const variations = state.variations && typeof state.variations === 'object' ? state.variations : {};
+  const activeProjectId = state.activeProjectId && projects.some((project) => project.id === state.activeProjectId)
+    ? state.activeProjectId
+    : projects[0]?.id || null;
+
+  return {
+    ...initial,
+    ...state,
+    version: APP_VERSION,
+    companies: initial.companies,
+    projects,
+    variations,
+    activeProjectId,
+    uiState: {
+      ...initial.uiState,
+      ...(state.uiState || {}),
+      view: activeProjectId ? 'project' : (state.uiState?.view || 'welcome'),
+    },
+  };
+}
+
+===== FILE: src/logic/projectActions.ts =====
+import type { AppState } from '../types/appState';
+import type { Project } from '../types/domain';
+
+export function createProject(state: AppState, project: Project): AppState {
+  return {
+    ...state,
+    projects: [...state.projects, project],
+    activeProjectId: project.id,
+    variations: { ...state.variations, [project.id]: [] },
+    uiState: {
+      ...state.uiState,
+      view: 'project',
+      showProjectForm: false,
+      showWelcomeEmail: true,
+    },
+  };
+}
+
+export function selectProject(state: AppState, projectId: string): AppState {
+  return {
+    ...state,
+    activeProjectId: projectId,
+    uiState: { ...state.uiState, view: 'project' },
+  };
+}
+
+export function deleteProject(state: AppState, projectId: string): AppState {
+  const newVariations = { ...state.variations };
+  delete newVariations[projectId];
+  const projects = state.projects.filter((project) => project.id !== projectId);
+  return {
+    ...state,
+    projects,
+    variations: newVariations,
+    activeProjectId: projects[0]?.id || null,
+    uiState: { ...state.uiState, view: projects.length ? 'project' : 'welcome' },
+  };
+}
+
+===== FILE: src/logic/state.ts =====
+export { usePersistedAppState } from './usePersistedAppState';
+export { createProject, deleteProject, selectProject } from './projectActions';
+export {
+  createVariation,
+  getNextVariationNumber,
+  hasApprovedQuote,
+  selectVariation,
+  setVariationStatus,
+  updateVariation,
+} from './variationActions';
+
+===== FILE: src/logic/usePersistedAppState.ts =====
+import { useCallback, useEffect, useState } from 'react';
+import type { AppState } from '../types/appState';
+import { loadState, normalizeState, saveState } from './persistence';
+
+export function usePersistedAppState() {
+  const [state, setState] = useState(loadState);
+
+  useEffect(() => {
+    saveState(state);
+  }, [state]);
+
+  useEffect(() => {
+    const flush = () => saveState(state);
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', flush);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', flush);
+    };
+  }, [state]);
+
+  const update = useCallback((fn: (s: AppState) => AppState) => {
+    setState((prev) => {
+      const next = normalizeState(fn(prev));
+      saveState(next);
+      return next;
+    });
+  }, []);
+
+  return { state, setState: update };
+}
+
+===== FILE: src/logic/variationActions.ts =====
+import type { AppState } from '../types/appState';
+import type { Variation } from '../types/domain';
+
+export function createVariation(state: AppState, projectId: string, variation: Variation): AppState {
+  const existing = state.variations[projectId] || [];
+  return {
+    ...state,
+    variations: { ...state.variations, [projectId]: [...existing, variation] },
+    activeVariationId: variation.id,
+    uiState: { ...state.uiState, view: 'report' },
+  };
+}
+
+export function updateVariation(state: AppState, projectId: string, variation: Variation): AppState {
+  const existing = state.variations[projectId] || [];
+  return {
+    ...state,
+    variations: { ...state.variations, [projectId]: existing.map((item) => item.id === variation.id ? variation : item) },
+  };
+}
+
+export function selectVariation(state: AppState, variationId: string): AppState {
+  return { ...state, activeVariationId: variationId, uiState: { ...state.uiState, view: 'report' } };
+}
+
+export function setVariationStatus(state: AppState, projectId: string, variationId: string, status: Variation['status']): AppState {
+  const existing = state.variations[projectId] || [];
+  return {
+    ...state,
+    variations: { ...state.variations, [projectId]: existing.map((item) => item.id === variationId ? { ...item, status } : item) },
+  };
+}
+
+export function hasApprovedQuote(state: AppState, projectId: string): boolean {
+  return (state.variations[projectId] || []).some((item) => item.documentType === 'quote' && item.status === 'approved');
+}
+
+export function getNextVariationNumber(state: AppState, projectId: string): string {
+  const count = (state.variations[projectId] || []).filter((item) => item.documentType === 'variation').length;
+  return `V-${String(count + 1).padStart(3, '0')}`;
+}
+
+===== FILE: src/main.tsx =====
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import "./index.css";
+import App from "./App";
+import { clearBrowserRuntimeCaches } from "./utils/cacheControl";
+
+void clearBrowserRuntimeCaches();
+
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+);
+
+
+===== FILE: src/types/appState.ts =====
+/* ─── Segal Build — App State Type ─── */
+import type { Project, Variation, Company } from './domain';
+
+export type AppState = {
+  version: string;
+  activeCompanyId: string;
+  companies: Company[];
+  projects: Project[];
+  activeProjectId: string | null;
+  variations: Record<string, Variation[]>; // projectId -> variations
+  activeVariationId: string | null;
+  uiState: {
+    view: 'welcome' | 'project' | 'builder' | 'report';
+    showProjectForm: boolean;
+    showWelcomeEmail: boolean;
+  };
+};
+

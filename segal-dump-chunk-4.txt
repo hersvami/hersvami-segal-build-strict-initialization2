@@ -1,0 +1,1778 @@
+===== FILE: src/utils/pdfQuote/pdfConstants.ts =====
+export const BLUE = [29, 78, 216] as const;
+export const INK = [15, 23, 42] as const;
+export const MUTED = [71, 85, 105] as const;
+export const LINE = [203, 213, 225] as const;
+
+export const PDF_MARGIN = 14;
+
+export function formatMoney(value: number): string {
+  return new Intl.NumberFormat('en-AU', {
+    style: 'currency',
+    currency: 'AUD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value || 0);
+}
+
+export function formatDate(value: Date): string {
+  return value.toLocaleDateString('en-AU');
+}
+
+===== FILE: src/utils/pdfQuote/pdfHeader.ts =====
+import type { jsPDF } from 'jspdf';
+import type { Company, Project, Variation } from '../../types/domain';
+import { BLUE, INK, LINE, MUTED, formatDate } from './pdfConstants';
+
+export function drawHeader(doc: jsPDF, company: Company, project: Project, variation: Variation, quoteNo: string, quoteDate: Date, expiryDate: Date) {
+  const pageWidth = doc.internal.pageSize.width;
+  doc.setTextColor(...INK);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(19);
+  doc.text(company.name.toUpperCase(), 14, 18);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...MUTED);
+  doc.text('Building Your Dreams', 14, 24);
+  doc.text(`${company.phone} | ${company.email} | ${company.websiteUrl || 'segalbuild.com.au'}`, 14, 30);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(22);
+  doc.setTextColor(...BLUE);
+  doc.text(variation.documentType === 'quote' ? 'Quotation' : 'Variation', pageWidth - 14, 18, { align: 'right' });
+  doc.setFontSize(9);
+  doc.setTextColor(...MUTED);
+  doc.text(`# ${quoteNo}`, pageWidth - 14, 25, { align: 'right' });
+  doc.setDrawColor(...LINE);
+  doc.line(14, 36, pageWidth - 14, 36);
+  drawClientDetails(doc, project, variation, quoteDate, expiryDate);
+  return 84;
+}
+
+function drawClientDetails(doc: jsPDF, project: Project, variation: Variation, quoteDate: Date, expiryDate: Date) {
+  const pageWidth = doc.internal.pageSize.width;
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...INK);
+  doc.text('Prepared for', 14, 46);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...MUTED);
+  doc.text(project.customer.name, 14, 52);
+  doc.text(project.address, 14, 58);
+  if (project.customer.email) doc.text(project.customer.email, 14, 64);
+  if (project.customer.phone) doc.text(project.customer.phone, 14, 70);
+  const metaX = pageWidth - 70;
+  drawMeta(doc, metaX, 46, 'Quotation Date', formatDate(quoteDate));
+  drawMeta(doc, metaX, 58, 'Expiration', formatDate(expiryDate));
+  drawMeta(doc, metaX, 70, variation.documentType === 'quote' ? 'Salesperson' : 'Prepared by', 'James Segal');
+}
+
+function drawMeta(doc: jsPDF, x: number, y: number, label: string, value: string) {
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...INK);
+  doc.text(label, x, y);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...MUTED);
+  doc.text(value, x + 34, y);
+}
+
+===== FILE: src/utils/pdfQuote/pdfLayout.ts =====
+import type { jsPDF } from 'jspdf';
+import type { Company } from '../../types/domain';
+import { INK, LINE, MUTED } from './pdfConstants';
+
+export function sectionTitle(doc: jsPDF, title: string, x: number, y: number) {
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(...INK);
+  doc.text(title, x, y);
+}
+
+export function ensureSpace(doc: jsPDF, y: number, needed: number, pageHeight: number) {
+  if (y + needed <= pageHeight - 22) return y;
+  doc.addPage();
+  return 18;
+}
+
+export function paragraph(doc: jsPDF, text: string, x: number, y: number, width: number, pageHeight: number, fontSize = 9, lineHeight = 4) {
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(fontSize);
+  doc.setTextColor(...MUTED);
+  const lines = doc.splitTextToSize(text, width);
+  for (const line of lines) {
+    y = ensureSpace(doc, y, lineHeight + 2, pageHeight);
+    doc.text(line, x, y);
+    y += lineHeight;
+  }
+  return y;
+}
+
+export function bulletList(doc: jsPDF, title: string, items: string[], x: number, y: number, pageWidth: number, pageHeight: number) {
+  if (items.length === 0) return y;
+  y = ensureSpace(doc, y, 10, pageHeight);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(...INK);
+  doc.text(`${title}:`, x, y);
+  y += 4;
+  for (const item of items.slice(0, 8)) {
+    y = paragraph(doc, `- ${item}`, x + 3, y, pageWidth - x - 18, pageHeight, 7.5, 3.4);
+  }
+  return y + 1;
+}
+
+export function drawFooterOnAllPages(doc: jsPDF, company: Company, pageWidth: number, pageHeight: number) {
+  const pages = doc.getNumberOfPages();
+  for (let i = 1; i <= pages; i++) {
+    doc.setPage(i);
+    doc.setDrawColor(...LINE);
+    doc.line(14, pageHeight - 16, pageWidth - 14, pageHeight - 16);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(...MUTED);
+    doc.text(`${company.name} | ${company.phone} | ${company.email} | ${company.websiteUrl || 'segalbuild.com.au'}`, 14, pageHeight - 10);
+    doc.text(`Page ${i} / ${pages}`, pageWidth - 14, pageHeight - 10, { align: 'right' });
+  }
+}
+
+===== FILE: src/utils/pdfQuote/pdfLineItems.ts =====
+import type { jsPDF } from 'jspdf';
+import type { JobStage, Variation } from '../../types/domain';
+import { INK, formatMoney } from './pdfConstants';
+import { ensureSpace, paragraph, sectionTitle } from './pdfLayout';
+
+type LineItem = { description: string; quantity: number; unit: string; unitPrice: number; amount: number; detail?: string };
+
+export function drawLineItems(doc: jsPDF, variation: Variation, y: number, margin: number, pageWidth: number, pageHeight: number) {
+  const rows = buildLineItems(variation);
+  y = ensureSpace(doc, y, 24, pageHeight);
+  sectionTitle(doc, 'Line Schedule', margin, y);
+  y += 7;
+  drawTableHeader(doc, margin, y, pageWidth);
+  y += 7;
+  for (const row of rows) y = drawLineItem(doc, row, y, margin, pageWidth, pageHeight);
+  return y + 2;
+}
+
+function drawLineItem(doc: jsPDF, row: LineItem, y: number, margin: number, pageWidth: number, pageHeight: number) {
+  y = ensureSpace(doc, y, row.detail ? 15 : 9, pageHeight);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(...INK);
+  doc.text(doc.splitTextToSize(row.description, 70), margin, y);
+  doc.text(row.quantity.toFixed(2), pageWidth - 88, y, { align: 'right' });
+  doc.text(row.unit, pageWidth - 78, y, { align: 'left' });
+  doc.text(formatMoney(row.unitPrice), pageWidth - 48, y, { align: 'right' });
+  doc.text('GST Sales', pageWidth - 30, y, { align: 'center' });
+  doc.text(formatMoney(row.amount), pageWidth - margin, y, { align: 'right' });
+  y += 5;
+  if (row.detail) y = paragraph(doc, row.detail, margin + 3, y, 70, pageHeight, 7.5, 3.2);
+  doc.setDrawColor(241, 245, 249);
+  doc.line(margin, y, pageWidth - margin, y);
+  return y + 3;
+}
+
+function buildLineItems(variation: Variation): LineItem[] {
+  return variation.scopes.flatMap((scope) => {
+    const stageRows = scope.stages.map((stage: JobStage) => ({
+      description: `${scope.categoryLabel} - ${stage.name}`,
+      quantity: 1,
+      unit: 'Units',
+      unitPrice: stage.cost || 0,
+      amount: stage.cost || 0,
+      detail: stage.description,
+    }));
+    const boqRows = (scope.parametricItems || []).map((item) => ({
+      description: `${scope.categoryLabel} - ${item.label}`,
+      quantity: item.quantity || 0,
+      unit: item.unit,
+      unitPrice: item.rate || 0,
+      amount: (item.quantity || 0) * (item.rate || 0),
+      detail: item.notes,
+    }));
+    return [...stageRows, ...boqRows];
+  });
+}
+
+function drawTableHeader(doc: jsPDF, margin: number, y: number, pageWidth: number) {
+  doc.setFillColor(241, 245, 249);
+  doc.rect(margin, y - 5, pageWidth - margin * 2, 7, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(...INK);
+  doc.text('DESCRIPTION', margin + 1, y);
+  doc.text('QUANTITY', pageWidth - 88, y, { align: 'right' });
+  doc.text('UNIT', pageWidth - 78, y);
+  doc.text('UNIT PRICE', pageWidth - 48, y, { align: 'right' });
+  doc.text('GST', pageWidth - 30, y, { align: 'center' });
+  doc.text('AMOUNT', pageWidth - margin, y, { align: 'right' });
+}
+
+===== FILE: src/utils/pdfQuote/pdfScopeSections.ts =====
+import type { jsPDF } from 'jspdf';
+import type { Project, Variation } from '../../types/domain';
+import { INK } from './pdfConstants';
+import { bulletList, ensureSpace, paragraph, sectionTitle } from './pdfLayout';
+
+export function drawProjectOverview(doc: jsPDF, variation: Variation, project: Project, y: number, margin: number, pageWidth: number, pageHeight: number) {
+  y = ensureSpace(doc, y, 42, pageHeight);
+  sectionTitle(doc, 'Project Overview', margin, y);
+  y += 7;
+  const overview = variation.description || `This quote is for the proposed works at ${project.address}. It outlines the construction scope, trade stages, inclusions, exclusions and total payable including GST.`;
+  return paragraph(doc, overview, margin, y, pageWidth - margin * 2, pageHeight) + 4;
+}
+
+export function drawScopeNarrative(doc: jsPDF, variation: Variation, y: number, margin: number, pageWidth: number, pageHeight: number) {
+  y = ensureSpace(doc, y, 30, pageHeight);
+  sectionTitle(doc, 'Scope of Work', margin, y);
+  y += 7;
+  for (const [index, scope] of variation.scopes.entries()) {
+    y = ensureSpace(doc, y, 26, pageHeight);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(...INK);
+    doc.text(`${index + 1}. ${scope.categoryLabel}`, margin, y);
+    y += 5;
+    y = paragraph(doc, scope.description || 'Scope details to be confirmed.', margin + 3, y, pageWidth - margin * 2 - 3, pageHeight, 8.5);
+    if (scope.inclusions.length > 0) y = bulletList(doc, 'Included', scope.inclusions.map((item) => item.text), margin + 3, y, pageWidth, pageHeight);
+    if (scope.exclusions.length > 0) y = bulletList(doc, 'Excluded', scope.exclusions.map((item) => item.text), margin + 3, y, pageWidth, pageHeight);
+    y += 2;
+  }
+  return y + 2;
+}
+
+===== FILE: src/utils/pdfQuote/pdfTerms.ts =====
+import type { jsPDF } from 'jspdf';
+import { SEGAL_BUILD_TERMS } from '../legal/terms';
+import { INK } from './pdfConstants';
+import { ensureSpace, paragraph, sectionTitle } from './pdfLayout';
+
+export function drawTerms(doc: jsPDF, pageWidth: number, pageHeight: number, margin: number) {
+  doc.addPage();
+  let y = 18;
+  sectionTitle(doc, 'Terms and Conditions', margin, y);
+  y += 8;
+  for (const section of SEGAL_BUILD_TERMS) {
+    y = ensureSpace(doc, y, 16, pageHeight);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...INK);
+    doc.text(section.title.toUpperCase(), margin, y);
+    y += 5;
+    for (const clause of section.clauses) {
+      y = paragraph(doc, clause, margin, y, pageWidth - margin * 2, pageHeight, 7.2, 3.4);
+    }
+    y += 2;
+  }
+}
+
+===== FILE: src/utils/pdfQuote/pdfTotals.ts =====
+import type { jsPDF } from 'jspdf';
+import type { Variation } from '../../types/domain';
+import { BLUE, INK, formatMoney } from './pdfConstants';
+import { ensureSpace, paragraph, sectionTitle } from './pdfLayout';
+
+export function drawTotals(doc: jsPDF, variation: Variation, y: number, margin: number, pageWidth: number, pageHeight: number) {
+  y = ensureSpace(doc, y, 42, pageHeight);
+  const x = pageWidth - 82;
+  const rows: Array<[string, number, boolean?]> = [
+    ['Subtotal', variation.pricing.tradeCost],
+    ['Preliminaries', variation.pricing.preliminariesAmountExGst || 0],
+    ['Untaxed Amount', variation.pricing.subtotalExclGst],
+    ['GST 10%', variation.pricing.gstAmount],
+    ['Total', variation.pricing.total, true],
+  ];
+  for (const [label, value, strong] of rows) {
+    doc.setFont('helvetica', strong ? 'bold' : 'normal');
+    doc.setFontSize(strong ? 12 : 9);
+    if (strong) doc.setTextColor(...BLUE);
+    else doc.setTextColor(...INK);
+    doc.text(label, x, y);
+    doc.text(formatMoney(value), pageWidth - margin, y, { align: 'right' });
+    y += strong ? 8 : 6;
+  }
+  return y + 2;
+}
+
+export function drawPaymentTerms(doc: jsPDF, y: number, margin: number, pageWidth: number, pageHeight: number) {
+  y = ensureSpace(doc, y, 42, pageHeight);
+  sectionTitle(doc, 'Payment Terms', margin, y);
+  y += 7;
+  const lines = ['Payment Due on Invoice', 'Account Name: Segal Build Pty. Ltd.', 'BSB: 083004', 'Account No.: 971236454', 'This invoice is issued pursuant to the Building and Construction Industry Security of Payment Act 2002 (VIC).'];
+  return paragraph(doc, lines.join('\n'), margin, y, pageWidth - margin * 2, pageHeight, 9, 4);
+}
+
+export function drawAcceptance(doc: jsPDF, y: number, margin: number, pageWidth: number, pageHeight: number) {
+  y = ensureSpace(doc, y + 6, 40, pageHeight);
+  sectionTitle(doc, 'Acceptance', margin, y);
+  y += 10;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.text('I/we accept this quotation and authorise Segal Build to proceed with the works described above.', margin, y);
+  y += 20;
+  doc.line(margin, y, margin + 75, y);
+  doc.line(pageWidth - margin - 55, y, pageWidth - margin, y);
+  doc.setFontSize(8);
+  doc.text('Client Signature', margin, y + 5);
+  doc.text('Date', pageWidth - margin - 55, y + 5);
+  return y + 10;
+}
+
+===== FILE: src/utils/pdf/boqSections.ts =====
+import type { jsPDF } from 'jspdf';
+import { autoTable } from 'jspdf-autotable';
+import type { Variation } from '../../types/domain';
+import { PHASE_LABELS, PHASE_ORDER } from '../../components/variationBuilder/phaseGrouping';
+import { formatCurrency } from '../helpers';
+import { inferPhaseFromParametric, inferPhaseFromStage } from './phaseInference';
+
+type BoqItem = { label: string; trade: string; description: string; cost: number };
+
+export function drawBoqSections(doc: jsPDF, variation: Variation, yPos: number): number {
+  const phaseGroups: Record<string, BoqItem[]> = {};
+  for (const phase of PHASE_ORDER) phaseGroups[phase] = [];
+
+  for (const stage of variation.scopes.flatMap((scope) => scope.stages || [])) {
+    phaseGroups[inferPhaseFromStage(stage)].push({ label: stage.name, trade: stage.trade, description: stage.description || '', cost: stage.cost });
+  }
+  for (const item of variation.scopes.flatMap((scope) => scope.parametricItems || [])) {
+    phaseGroups[inferPhaseFromParametric(item)].push({ label: item.label, trade: `${item.quantity} ${item.unit} x ${formatCurrency(item.rate)}`, description: item.notes || '', cost: item.rate * item.quantity });
+  }
+
+  for (const phase of PHASE_ORDER) {
+    if (phaseGroups[phase].length === 0) continue;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(41, 98, 255);
+    doc.text(PHASE_LABELS[phase], 14, yPos);
+    yPos += 2;
+    autoTable(doc, {
+      startY: yPos,
+      head: [['Stage / Item', 'Description', 'Trade / Unit', 'Amount']],
+      body: phaseGroups[phase].map((item) => [item.label, item.description, item.trade, formatCurrency(item.cost)]),
+      theme: 'plain',
+      headStyles: { fillColor: [240, 240, 240], textColor: [80, 80, 80], fontStyle: 'bold' },
+      styles: { fontSize: 9, cellPadding: 1.5 },
+      margin: { left: 14, right: 14 },
+      columnStyles: { 3: { halign: 'right', fontStyle: 'bold' } },
+    });
+    yPos = (doc as any).lastAutoTable.finalY + 8;
+  }
+  return yPos;
+}
+
+
+===== FILE: src/utils/pdf/documentIntro.ts =====
+import type { jsPDF } from 'jspdf';
+import type { Project, Variation } from '../../types/domain';
+
+export function drawDocumentIntro(doc: jsPDF, variation: Variation, project: Project, yPos: number, pageWidth: number): number {
+  const documentName = variation.documentType === 'quote' ? 'quotation' : 'variation';
+  const intro = [
+    `This ${documentName} has been prepared for ${project.customer.name} for the works at ${project.address}.`,
+    'It outlines the proposed scope, pricing basis, inclusions, exclusions and GST total for review before approval.',
+  ];
+
+  if (variation.documentType === 'variation' && variation.reasonForChange) {
+    intro.push(`Reason for variation: ${variation.reasonForChange}.`);
+  }
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(41, 98, 255);
+  doc.text('Document Overview', 14, yPos);
+  yPos += 5;
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(60, 60, 60);
+  doc.setFontSize(9);
+  const lines = doc.splitTextToSize(intro.join(' '), pageWidth - 28);
+  doc.text(lines, 14, yPos);
+  return yPos + lines.length * 4.5 + 7;
+}
+
+
+===== FILE: src/utils/pdf/footer.ts =====
+import type { jsPDF } from 'jspdf';
+import type { Company } from '../../types/domain';
+
+export function drawFooter(doc: jsPDF, company: Company, pageWidth: number) {
+  const yPos = pageWidth > 200 ? 280 : 290;
+  doc.setFontSize(9);
+  doc.setTextColor(41, 98, 255);
+  doc.text(`${company.name} | ${company.phone} | ${company.email}`, pageWidth / 2, yPos, { align: 'center' });
+}
+
+
+===== FILE: src/utils/pdf/letterhead.ts =====
+import type { jsPDF } from 'jspdf';
+import type { Company, Project, Variation } from '../../types/domain';
+
+export function drawLetterhead(doc: jsPDF, variation: Variation, company: Company) {
+  const pageWidth = doc.internal.pageSize.width;
+  const docLabel = variation.documentType === 'quote' ? 'Quotation' : 'Variation';
+
+  doc.setFillColor(15, 23, 42);
+  doc.rect(0, 0, pageWidth, 34, 'F');
+  doc.setFillColor(29, 78, 216);
+  doc.rect(0, 34, pageWidth, 2, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(19);
+  doc.setFont('helvetica', 'bold');
+  doc.text(company.name, 14, 16);
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`ABN ${company.abn}`, 14, 23);
+  if (company.licence) doc.text(company.licence, 14, 29);
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.text(docLabel, pageWidth - 14, 16, { align: 'right' });
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.text(new Date(variation.createdAt).toLocaleDateString('en-AU'), pageWidth - 14, 23, { align: 'right' });
+  if (variation.variationNumber) doc.text(`Reference ${variation.variationNumber}`, pageWidth - 14, 29, { align: 'right' });
+}
+
+export function drawProjectDetails(doc: jsPDF, variation: Variation, project: Project) {
+  const pageWidth = doc.internal.pageSize.width;
+
+  doc.setDrawColor(226, 232, 240);
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(14, 46, pageWidth - 28, 32, 2, 2, 'FD');
+
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Prepared for', 18, 55);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(71, 85, 105);
+  doc.text(project.customer.name, 18, 61);
+  doc.text(project.customer.email, 18, 66);
+  if (project.customer.phone) doc.text(project.customer.phone, 18, 71);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text('Project', pageWidth / 2, 55);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  doc.text(project.name, pageWidth / 2, 61);
+  doc.text(doc.splitTextToSize(project.address, pageWidth / 2 - 24), pageWidth / 2, 66);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text('Total incl. GST', pageWidth - 18, 55, { align: 'right' });
+  doc.setFontSize(13);
+  doc.setTextColor(29, 78, 216);
+  doc.text(formatMoney(variation.pricing.total), pageWidth - 18, 64, { align: 'right' });
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Status: ${variation.status.toUpperCase()}`, pageWidth - 18, 71, { align: 'right' });
+}
+
+function formatMoney(value: number): string {
+  return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(value || 0);
+}
+
+
+===== FILE: src/utils/pdf/phaseInference.ts =====
+import type { ParametricItem } from '../../types/domain';
+
+export function inferPhaseFromStage(stage: { name: string; trade: string }): string {
+  const text = `${stage.name} ${stage.trade}`.toLowerCase();
+  if (['demo', 'remove', 'strip', 'prep'].some((token) => text.includes(token))) return 'preparation';
+  if (['plumbing', 'electrical', 'hvac'].some((token) => text.includes(token))) return 'services';
+  if (['tiling', 'painting', 'waterproofing', 'flooring'].some((token) => text.includes(token))) return 'finishes';
+  return 'structure';
+}
+
+export function inferPhaseFromParametric(item: Pick<ParametricItem, 'label' | 'unit' | 'phase'>): string {
+  if (item.phase) return item.phase;
+  const text = `${item.label} ${item.unit}`.toLowerCase();
+  if (['prep', 'remove', 'demo'].some((token) => text.includes(token))) return 'preparation';
+  if (['point', 'circuit', 'pipe', 'duct'].some((token) => text.includes(token))) return 'services';
+  if (['tile', 'paint', 'floor', 'waterproof'].some((token) => text.includes(token))) return 'finishes';
+  return 'structure';
+}
+
+
+===== FILE: src/utils/pdf/pricingSummary.ts =====
+import type { jsPDF } from 'jspdf';
+import { autoTable } from 'jspdf-autotable';
+import type { Variation } from '../../types/domain';
+import { formatCurrency } from '../helpers';
+
+export function drawPricingSummary(doc: jsPDF, variation: Variation, yPos: number, pageWidth: number): number {
+  if (yPos > 220) {
+    doc.addPage();
+    yPos = 18;
+  }
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(15, 23, 42);
+  doc.text('Investment Summary', 14, yPos);
+  yPos += 6;
+
+  autoTable(doc, {
+    startY: yPos,
+    body: [
+      ['Direct construction cost', formatCurrency(variation.pricing.tradeCost)],
+      [`Builder overhead (${variation.pricing.overheadPercent}%)`, formatCurrency(variation.pricing.overhead)],
+      [`Builder margin (${variation.pricing.profitPercent}%)`, formatCurrency(variation.pricing.profit)],
+      [`Risk and contingency allowance (${variation.pricing.contingencyPercent}%)`, formatCurrency(variation.pricing.contingency)],
+      ['Subtotal (excl. GST)', formatCurrency(variation.pricing.subtotalExclGst)],
+      ['GST (10%)', formatCurrency(variation.pricing.gst)],
+    ],
+    theme: 'plain',
+    styles: { fontSize: 9.5, cellPadding: 2.5, textColor: [51, 65, 85] },
+    margin: { left: 14, right: 14 },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    columnStyles: { 1: { fontStyle: 'bold', halign: 'right', textColor: [15, 23, 42] } },
+  });
+
+  yPos = (doc as any).lastAutoTable.finalY + 6;
+  doc.setFillColor(29, 78, 216);
+  doc.roundedRect(14, yPos, pageWidth - 28, 14, 2, 2, 'F');
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(255, 255, 255);
+  doc.text('Total payable (incl. GST)', 18, yPos + 9);
+  doc.text(formatCurrency(variation.pricing.total), pageWidth - 18, yPos + 9, { align: 'right' });
+  return yPos + 18;
+}
+
+
+===== FILE: src/utils/pdf/scopeDetails.ts =====
+import type { jsPDF } from 'jspdf';
+import type { QuoteScope, Variation } from '../../types/domain';
+
+export function drawScopeDetails(doc: jsPDF, variation: Variation, yPos: number, pageWidth: number): number {
+  if (variation.scopes.length > 0) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(15, 23, 42);
+    doc.text('Detailed Scope of Works', 14, yPos);
+    yPos += 8;
+  }
+
+  for (const scope of variation.scopes) {
+    yPos = maybeNewPage(doc, yPos, 50);
+    doc.setDrawColor(226, 232, 240);
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(14, yPos - 5, pageWidth - 28, 9, 1.5, 1.5, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(15, 23, 42);
+    doc.text(scope.categoryLabel, 18, yPos);
+    yPos += 8;
+    yPos = drawScopeText(doc, scope, yPos, pageWidth);
+  }
+  return yPos + 2;
+}
+
+function drawScopeText(doc: jsPDF, scope: QuoteScope, yPos: number, pageWidth: number): number {
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(70, 70, 70);
+  if (scope.description) {
+    const lines = doc.splitTextToSize(scope.description, pageWidth - 28);
+    doc.text(lines, 14, yPos);
+    yPos += lines.length * 4 + 4;
+  }
+
+  yPos = drawList(doc, 'Included', scope.inclusions.map((item) => item.text), yPos, pageWidth);
+  yPos = drawList(doc, 'Excluded', scope.exclusions.map((item) => item.text), yPos, pageWidth);
+  return yPos + 3;
+}
+
+function drawList(doc: jsPDF, title: string, items: string[], yPos: number, pageWidth: number): number {
+  if (items.length === 0) return yPos;
+  doc.setFont('helvetica', 'bold');
+  doc.text(`${title}:`, 14, yPos);
+  yPos += 4;
+  doc.setFont('helvetica', 'normal');
+  for (const item of items.slice(0, 6)) {
+    const lines = doc.splitTextToSize(`- ${item}`, pageWidth - 32);
+    doc.text(lines, 18, yPos);
+    yPos += lines.length * 3.8;
+  }
+  if (items.length > 6) {
+    doc.text(`- Plus ${items.length - 6} additional item(s) listed in project records.`, 18, yPos);
+    yPos += 4;
+  }
+  return yPos + 2;
+}
+
+function maybeNewPage(doc: jsPDF, yPos: number, needed: number): number {
+  const pageHeight = doc.internal.pageSize.height;
+  if (yPos + needed < pageHeight - 28) return yPos;
+  doc.addPage();
+  return 18;
+}
+
+
+===== FILE: src/utils/pdf/scopeSummary.ts =====
+import type { jsPDF } from 'jspdf';
+import type { Variation } from '../../types/domain';
+
+export function drawScopeSummary(doc: jsPDF, variation: Variation, yPos: number, pageWidth: number): number {
+  if (!variation.description) return yPos;
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Scope of Works Summary', 14, yPos);
+  doc.setFont('helvetica', 'normal');
+  yPos += 5;
+  const descLines = doc.splitTextToSize(variation.description, pageWidth - 28);
+  doc.text(descLines, 14, yPos);
+  return yPos + descLines.length * 5 + 8;
+}
+
+
+===== FILE: src/utils/pdf/terms.ts =====
+import type { jsPDF } from 'jspdf';
+import { SEGAL_BUILD_TERMS } from '../legal/terms';
+
+export function drawTermsAndConditions(doc: jsPDF, pageWidth: number) {
+  doc.addPage();
+  let yPos = 18;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.setTextColor(41, 98, 255);
+  doc.text('Terms and Conditions', 14, yPos);
+  yPos += 8;
+
+  for (const section of SEGAL_BUILD_TERMS) {
+    yPos = ensureSpace(doc, yPos, 18);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(40, 40, 40);
+    doc.text(section.title, 14, yPos);
+    yPos += 5;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(70, 70, 70);
+    for (const clause of section.clauses) {
+      const lines = doc.splitTextToSize(clause, pageWidth - 28);
+      yPos = ensureSpace(doc, yPos, lines.length * 3.6 + 2);
+      doc.text(lines, 14, yPos);
+      yPos += lines.length * 3.6 + 2;
+    }
+  }
+}
+
+function ensureSpace(doc: jsPDF, yPos: number, needed: number): number {
+  const pageHeight = doc.internal.pageSize.height;
+  if (yPos + needed < pageHeight - 18) return yPos;
+  doc.addPage();
+  return 18;
+}
+
+
+===== FILE: src/utils/pricing/baselineMultipliers.ts =====
+/* ─── Segal Build — Baseline Multipliers ─── */
+import type { ProjectBaseline } from '../../types/domain';
+
+export type BaselineAdjustment = {
+  scaffoldingCost: number;
+  accessLabourMultiplier: number;
+  accessSurcharge: number;
+  totalAdjustment: number;
+  notes: string[];
+};
+
+const SCAFFOLD_RATE_PER_M2: Record<string, number> = {
+  single: 0,
+  double: 65,
+  multi: 120,
+};
+
+const ACCESS_MULTIPLIER: Record<string, number> = {
+  easy: 1.0,
+  moderate: 1.075,
+  difficult: 1.15,
+};
+
+export function calcBaselineAdjustment(
+  baseline: ProjectBaseline | undefined,
+  rawTradeCost: number,
+): BaselineAdjustment {
+  if (!baseline) {
+    return { scaffoldingCost: 0, accessLabourMultiplier: 1, accessSurcharge: 0, totalAdjustment: 0, notes: [] };
+  }
+
+  const notes: string[] = [];
+  const area = Math.max(baseline.totalAreaM2 || 0, 0);
+
+  const scaffoldRate = SCAFFOLD_RATE_PER_M2[baseline.storeys] ?? 0;
+  const scaffoldingCost = Math.round(scaffoldRate * area);
+  if (scaffoldingCost > 0) {
+    notes.push(`Scaffolding & roof edge protection (${baseline.storeys}-storey × ${area} m² @ $${scaffoldRate}/m²)`);
+  }
+
+  const accessLabourMultiplier = ACCESS_MULTIPLIER[baseline.siteAccess] ?? 1;
+  const accessSurcharge = Math.round(rawTradeCost * (accessLabourMultiplier - 1));
+  if (accessSurcharge > 0) {
+    const pct = Math.round((accessLabourMultiplier - 1) * 100);
+    notes.push(`Site access surcharge (${baseline.siteAccess}, +${pct}% labour)`);
+  }
+
+  return { scaffoldingCost, accessLabourMultiplier, accessSurcharge, totalAdjustment: scaffoldingCost + accessSurcharge, notes };
+}
+
+export function describeBaseline(baseline: ProjectBaseline | undefined): string {
+  if (!baseline) return 'No baseline set';
+  return `${baseline.totalAreaM2} m² • ${baseline.ceilingHeightM}m high • ${baseline.storeys}-storey • ${baseline.siteAccess} access`;
+}
+
+
+===== FILE: src/utils/pricing/benchmarkTypes.ts =====
+import type { PricingSourceMeta } from '../../types/domain';
+
+export type PricingMode = 'composite' | 'material_only' | 'labour_only' | 'hire' | 'provision' | 'pc_value';
+
+export type ResolvedBenchmarkRate = {
+  rate: number;
+  label: string;
+  unit: string;
+  meta: PricingSourceMeta;
+};
+
+export type RawlinsonsMapping = {
+  tradeKeywords: string[];
+  materialKeywords: string[];
+  preferredCostTypes?: PricingMode[];
+};
+
+
+===== FILE: src/utils/pricing/constants.ts =====
+/* ─── Segal Build — Pricing Constants ─── */
+import type { SolutionTemplate, StageTemplate } from './types';
+
+export const TRADE_MARKERS = [
+  'Demo', 'Carpentry', 'Plumbing', 'Electrical', 'Tiling', 'Painting',
+  'Plastering', 'Waterproofing', 'Cabinetry', 'Flooring', 'Glass',
+  'Roofing', 'Landscaping', 'Concreting', 'Structural',
+] as const;
+
+export const DEFAULT_OH = 12;
+export const DEFAULT_PROFIT = 15;
+export const GST_RATE = 0.10;
+
+export const CONTINGENCY_BY_TYPE: Record<string, number> = {
+  renovation: 10,
+  new_build: 5,
+  extension: 8,
+  structural: 15,
+  maintenance: 5,
+  default: 10,
+};
+
+export function fixedCostTrades(): string[] {
+  return ['Demo', 'Electrical rough-in', 'Plumbing rough-in'];
+}
+
+export const DEFAULT_SOLUTIONS: SolutionTemplate[] = [
+  { name: 'Essential', description: 'Quality standard materials', multiplier: 1.0, stages: [] },
+  { name: 'Standard', description: 'Mid-range premium materials', multiplier: 1.3, stages: [] },
+  { name: 'Premium', description: 'High-end designer materials', multiplier: 1.7, stages: [] },
+];
+
+export const createStage = (
+  name: string, trade: string, rate: number,
+  unit: StageTemplate['unit'], duration: number, description: string,
+): StageTemplate => ({ name, trade, rate, unit, duration, description });
+
+
+===== FILE: src/utils/pricing/engine.ts =====
+/* ─── Segal Build — Solution Engine ─── */
+import { getCategoryById } from '../categories/extended';
+import type { JobStage, QuoteScope, Solution } from '../../types/domain';
+import { calculateScope } from './quoteCalculator';
+import { generateId } from '../helpers';
+
+export function generateSolutionsFromScope(
+  categoryId: string,
+  description: string,
+  dimensions: { width: number; length: number; height: number },
+): { scopes: QuoteScope[]; solutions: Solution[] } {
+  const cat = getCategoryById(categoryId);
+  if (!cat) return { scopes: [], solutions: [] };
+
+  const stages: JobStage[] = cat.stages.map(s => ({
+    name: s.name,
+    trade: s.trade,
+    cost: 0,
+    duration: s.duration,
+    description: s.description,
+    status: 'not-started' as const,
+  }));
+
+  const { totalCost, totalDuration } = calculateScope(cat.stages, dimensions);
+
+  const multipliers = [
+    { name: 'Essential', desc: 'Quality standard materials', mult: 1.0 },
+    { name: 'Standard', desc: 'Mid-range premium materials', mult: 1.3 },
+    { name: 'Premium', desc: 'High-end designer materials', mult: 1.7 },
+  ];
+
+  const solutions: Solution[] = multipliers.map(m => ({
+    name: m.name,
+    totalCost: Math.round(totalCost * m.mult),
+    duration: Math.round(totalDuration * m.mult * 10) / 10,
+    stages: stages.map(s => ({
+      ...s,
+      cost: Math.round(s.cost || (totalCost * m.mult / stages.length)),
+    })),
+    description: m.desc,
+  }));
+
+  const scope: QuoteScope = {
+    id: generateId(),
+    categoryId,
+    categoryLabel: cat.label,
+    description,
+    stages,
+    dimensions,
+    answers: {},
+    pcItems: [],
+    inclusions: [],
+    exclusions: [],
+  };
+
+  return { scopes: [scope], solutions };
+}
+
+export function generateSolutionFromCategory(
+  categoryId: string,
+  description: string,
+  dimensions: { width: number; length: number; height: number },
+  multiplier: number = 1.0,
+): { scope: QuoteScope; stages: JobStage[]; totalCost: number; totalDuration: number } {
+  const cat = getCategoryById(categoryId);
+  if (!cat) {
+    const fallback: JobStage = {
+      name: description,
+      trade: 'General',
+      cost: 0,
+      duration: 5,
+      description,
+      status: 'not-started',
+    };
+    return {
+      scope: createEmptyScope(categoryId, description, dimensions),
+      stages: [fallback],
+      totalCost: 0,
+      totalDuration: 5,
+    };
+  }
+
+  const stages: JobStage[] = cat.stages.map(s => ({
+    name: s.name,
+    trade: s.trade,
+    cost: 0,
+    duration: s.duration,
+    description: s.description,
+    status: 'not-started' as const,
+  }));
+
+  const { totalCost, totalDuration } = calculateScope(cat.stages, dimensions);
+
+  return {
+    scope: createEmptyScope(categoryId, description, dimensions),
+    stages,
+    totalCost: Math.round(totalCost * multiplier),
+    totalDuration: Math.round(totalDuration * 10) / 10,
+  };
+}
+
+function createEmptyScope(
+  categoryId: string,
+  description: string,
+  dimensions: { width: number; length: number; height: number },
+): QuoteScope {
+  const cat = getCategoryById(categoryId);
+  return {
+    id: generateId(),
+    categoryId,
+    categoryLabel: cat?.label || categoryId,
+    description,
+    stages: [],
+    dimensions,
+    answers: {},
+    pcItems: [],
+    inclusions: [],
+    exclusions: [],
+    parametricItems: [],
+  };
+}
+
+export function calcScopeTotal(scope: QuoteScope): number {
+  const stageTotal = scope.stages.reduce((s, st) => s + (st.cost || 0), 0);
+  const paramTotal = (scope.parametricItems || []).reduce(
+    (s, p) => s + (p.rate * p.quantity),
+    0,
+  );
+  return stageTotal + paramTotal;
+}
+
+export function calcScopesTotal(scopes: QuoteScope[]): number {
+  return scopes.reduce((s, sc) => s + calcScopeTotal(sc), 0);
+}
+
+
+===== FILE: src/utils/pricing/index.ts =====
+/* ─── Segal Build — Pricing Barrel Exports ─── */
+export {
+  generateSolutionsFromScope,
+  generateSolutionFromCategory,
+  calcScopeTotal,
+  calcScopesTotal,
+} from './engine';
+export {
+  recogniseScope,
+  recogniseScopeWithAI,
+  getRelatedCategories,
+  getAutoAddCategories,
+  getSuggestedCategories,
+  suggestContingency,
+  getAllCategories,
+  getGroupedCategories,
+} from './scopeRecogniser';
+export { calculateQuote, calculateStage, calculateScope } from './quoteCalculator';
+export { getDefaultPCItems, getDefaultInclusions, getDefaultExclusions } from './quoteDefaults';
+export { formatCurrency } from '../helpers';
+export type { SolutionTemplate, StageTemplate } from './types';
+
+
+===== FILE: src/utils/pricing/materialPcResolver.ts =====
+import type { PricingSourceMeta } from '../../types/domain';
+import { calculateMaterialEscalationFactor, findMaterialRate, getEscalatedMaterialRate } from '../rates/materialRates2021';
+import { RAWLINSONS_MATERIAL_RATES_2021_METADATA } from '../rates/materialRateMetadata';
+import type { MaterialRate } from '../rates/materialRateTypes';
+import type { ResolvedBenchmarkRate } from './benchmarkTypes';
+
+export function resolveMaterialPcRate(query: string): ResolvedBenchmarkRate | undefined {
+  const match = findMaterialRate(query);
+  if (!match) return undefined;
+  const escalationFactor = calculateMaterialEscalationFactor();
+  const rate = getEscalatedMaterialRate(match, escalationFactor);
+
+  return {
+    rate,
+    label: match.item,
+    unit: match.unit,
+    meta: buildMaterialMeta(match, rate, escalationFactor),
+  };
+}
+
+function buildMaterialMeta(match: MaterialRate, escalatedRate: number, escalationFactor: number): PricingSourceMeta {
+  return {
+    source: RAWLINSONS_MATERIAL_RATES_2021_METADATA.source,
+    sourceType: 'benchmark',
+    costType: match.type === 'supply_only' ? 'material_only' : 'pc_value',
+    baseRate: match.rate,
+    escalationFactor,
+    escalatedRate,
+    gstIncluded: RAWLINSONS_MATERIAL_RATES_2021_METADATA.gst_included,
+    preliminariesIncluded: false,
+    confidence: 'benchmark_unverified',
+    baseDate: RAWLINSONS_MATERIAL_RATES_2021_METADATA.base_date,
+    notes: match.notes || RAWLINSONS_MATERIAL_RATES_2021_METADATA.pricing_notes,
+  };
+}
+
+===== FILE: src/utils/pricing/parametricUnits.ts =====
+import { BASE_PARAMETRIC_UNITS } from './units/baseUnits';
+import { PART2_PARAMETRIC_UNITS } from './units/part2Units';
+import type { ParametricUnit } from './units/types';
+
+export type { PhaseKey, ParametricUnit } from './units/types';
+
+export const PARAMETRIC_UNITS: ParametricUnit[] = BASE_PARAMETRIC_UNITS;
+export const PARAMETRIC_UNITS_PART2: ParametricUnit[] = PART2_PARAMETRIC_UNITS;
+
+const COMPLIANCE_BY_CATEGORY: Record<string, string> = {
+  electrical: 'AS/NZS 3000',
+  plumbing: 'VBA Plumbing Compliance',
+  tiling: 'AS 3958',
+  waterproofing: 'AS 3740',
+  painting: 'Manufacturer System + Site Safety',
+  flooring: 'Manufacturer Install Standards',
+  kitchen: 'NCC + Trade Coordination',
+  cabinetry: 'AS/NZS 4386 / Manufacturer Standards',
+  windowsDoors: 'NCC Glazing / Egress',
+  hvac: 'NCC + Manufacturer Commissioning',
+  fireSafety: 'AS 3786 / VBA',
+  smartHome: 'AS/NZS 3000 + Data Standards',
+  insulation: 'NCC Section J',
+};
+
+function getDefaultComplianceRef(unit: ParametricUnit): string {
+  if (unit.id === 'tl-waterproof' || unit.id.startsWith('wp-')) return 'AS 3740';
+  if (unit.id === 'el-smoke-alarm' || unit.id === 'fs-smoke') return 'AS 3786';
+  return COMPLIANCE_BY_CATEGORY[unit.categoryId] || 'Relevant VBA / NCC Standard';
+}
+
+function withComplianceRef(unit: ParametricUnit): ParametricUnit {
+  return unit.complianceRef ? unit : { ...unit, complianceRef: getDefaultComplianceRef(unit) };
+}
+
+const ALL_UNITS: ParametricUnit[] = [
+  ...PARAMETRIC_UNITS,
+  ...PARAMETRIC_UNITS_PART2,
+].map(withComplianceRef);
+
+export function getUnitsForCategory(categoryId: string): ParametricUnit[] {
+  return ALL_UNITS.filter((unit) => unit.categoryId === categoryId);
+}
+
+export function getUnitById(unitId: string): ParametricUnit | undefined {
+  return ALL_UNITS.find((unit) => unit.id === unitId);
+}
+
+export function getComplianceRefByUnitId(unitId: string): string | undefined {
+  return getUnitById(unitId)?.complianceRef;
+}
+
+export function hasParametricUnits(categoryId: string): boolean {
+  return ALL_UNITS.some((unit) => unit.categoryId === categoryId);
+}
+
+export function calcParametricTotal(items: { rate: number; quantity: number }[]): number {
+  return items.reduce((sum, item) => sum + item.rate * item.quantity, 0);
+}
+
+export function getAllParametricUnits(): ParametricUnit[] {
+  return ALL_UNITS;
+}
+
+
+===== FILE: src/utils/pricing/parametricUnitsPart2.ts =====
+import { PART2_PARAMETRIC_UNITS } from './units/part2Units';
+
+export const PARAMETRIC_UNITS_PART2 = PART2_PARAMETRIC_UNITS;
+
+
+===== FILE: src/utils/pricing/preliminaries.ts =====
+import type { PricingSourceMeta } from '../../types/domain';
+
+export const DEFAULT_PRELIMINARIES_PERCENT = 10;
+
+export function calculatePreliminaries(tradeCostExGst: number, percent = DEFAULT_PRELIMINARIES_PERCENT) {
+  return Math.round(tradeCostExGst * (percent / 100));
+}
+
+export function createPreliminariesMeta(percent = DEFAULT_PRELIMINARIES_PERCENT): PricingSourceMeta {
+  return {
+    source: 'Segal Build preliminaries allowance',
+    sourceType: 'manual',
+    costType: 'provision',
+    baseRate: percent,
+    gstIncluded: false,
+    preliminariesIncluded: true,
+    confidence: 'benchmark_unverified',
+    notes: 'Site setup, supervision, scaffolding, temporary works, and insurance allowance.',
+  };
+}
+
+===== FILE: src/utils/pricing/quoteCalculator.ts =====
+/* ─── Segal Build — Quote Calculator ─── */
+import type { QuotePricing } from '../../types/domain';
+
+const GST_RATE = 0.10;
+
+export function calculateQuote(
+  tradeCost: number,
+  overheadPercent: number,
+  profitPercent: number,
+  contingencyPercent: number,
+  preliminariesAmount: number = 0,
+  preliminariesPercent: number = 0,
+): QuotePricing {
+  const tradeCostWithPreliminaries = tradeCost + preliminariesAmount;
+  const overhead = tradeCostWithPreliminaries * (overheadPercent / 100);
+  const trueCost = tradeCostWithPreliminaries + overhead;
+  const profit = trueCost * (profitPercent / 100);
+  const clientTotal = trueCost + profit;
+  const contingency = clientTotal * (contingencyPercent / 100);
+  const subtotal = clientTotal + contingency;
+  const gst = subtotal * GST_RATE;
+  const totalIncGst = subtotal + gst;
+
+  return {
+    overheadPercent, profitPercent, contingencyPercent, gstPercent: 10,
+    tradeCost: Math.round(tradeCostWithPreliminaries),
+    overhead: Math.round(overhead),
+    profit: Math.round(profit),
+    contingency: Math.round(contingency),
+    preliminariesPercent,
+    preliminariesAmount: Math.round(preliminariesAmount),
+    gst: Math.round(gst),
+    clientTotal: Math.round(clientTotal),
+    totalIncGst: Math.round(totalIncGst),
+    total: Math.round(totalIncGst),
+    overheadAmount: Math.round(overhead),
+    profitAmount: Math.round(profit),
+    contingencyAmount: Math.round(contingency),
+    preliminariesAmountExGst: Math.round(preliminariesAmount),
+    subtotalExclGst: Math.round(subtotal),
+    gstAmount: Math.round(gst),
+  };
+}
+
+export function calculateStage(
+  rate: number,
+  unit: 'area' | 'linear' | 'item' | 'allow',
+  dimensions: { width: number; length: number; height: number },
+  quantity: number = 1,
+): number {
+  switch (unit) {
+    case 'area': return rate * (dimensions.width * dimensions.length);
+    case 'linear': return rate * dimensions.width;
+    case 'item': return rate * quantity;
+    case 'allow': return rate;
+    default: return rate;
+  }
+}
+
+export function calculateScope(
+  stages: Array<{ rate: number; unit: 'area' | 'linear' | 'item' | 'allow'; duration: number }>,
+  dimensions: { width: number; length: number; height: number },
+): { totalCost: number; totalDuration: number } {
+  let totalCost = 0;
+  let totalDuration = 0;
+  for (const stage of stages) {
+    totalCost += calculateStage(stage.rate, stage.unit, dimensions);
+    totalDuration += stage.duration;
+  }
+  return { totalCost: Math.round(totalCost), totalDuration: Math.round(totalDuration * 10) / 10 };
+}
+
+
+===== FILE: src/utils/pricing/quoteDefaults.ts =====
+/* ─── Segal Build — Quote Defaults ─── */
+import { getCategoryById } from '../categories/extended';
+import type { PCItem, InclusionItem, ExclusionItem } from '../../types/domain';
+import { generateId } from '../helpers';
+
+export function getDefaultPCItems(categoryId: string): PCItem[] {
+  const cat = getCategoryById(categoryId);
+  if (!cat) return [];
+  return cat.pcItems.map(pc => ({
+    id: generateId(),
+    description: pc.description,
+    allowance: pc.allowance,
+    unit: pc.unit,
+  }));
+}
+
+export function getDefaultInclusions(categoryId: string): InclusionItem[] {
+  const cat = getCategoryById(categoryId);
+  if (!cat) return [];
+  return cat.inclusions.map(text => ({
+    id: generateId(),
+    text,
+    isDefault: true,
+  }));
+}
+
+export function getDefaultExclusions(categoryId: string): ExclusionItem[] {
+  const cat = getCategoryById(categoryId);
+  if (!cat) return [];
+  return cat.exclusions.map(text => ({
+    id: generateId(),
+    text,
+    isDefault: true,
+  }));
+}
+
+
+===== FILE: src/utils/pricing/rawlinsonsBenchmarkResolver.ts =====
+import type { PricingSourceMeta } from '../../types/domain';
+import { getEscalatedRawlinsonsRate } from '../rates/rawlinsons2021';
+import { RAWLINSONS_2021_METADATA } from '../rates/rawlinsonsMetadata';
+import type { ResolvedBenchmarkRate } from './benchmarkTypes';
+import { resolveMaterialPcRate } from './materialPcResolver';
+
+export function resolveBenchmarkRate(categoryId: string, label: string, unit?: string): ResolvedBenchmarkRate | undefined {
+  const composite = getEscalatedRawlinsonsRate(categoryId, label, unit);
+  if (composite && composite.cost_type !== 'material_only') {
+    return {
+      rate: composite.adjustedRate,
+      label: composite.item,
+      unit: composite.unit,
+      meta: buildCompositeMeta(composite),
+    };
+  }
+
+  return resolveMaterialPcRate(`${categoryId} ${label}`);
+}
+
+function buildCompositeMeta(rate: NonNullable<ReturnType<typeof getEscalatedRawlinsonsRate>>): PricingSourceMeta {
+  return {
+    source: RAWLINSONS_2021_METADATA.source,
+    sourceType: 'benchmark',
+    costType: rate.cost_type || (rate.supplyAndInstall || rate.supply_and_install ? 'composite' : 'material_only'),
+    baseRate: rate.rate,
+    escalationFactor: rate.escalation,
+    escalatedRate: rate.adjustedRate,
+    gstIncluded: rate.gstIncluded,
+    preliminariesIncluded: false,
+    confidence: 'benchmark_unverified',
+    baseDate: RAWLINSONS_2021_METADATA.base_date,
+    notes: rate.notes || rate.sourceLabel,
+  };
+}
+
+===== FILE: src/utils/pricing/rawlinsonsCategoryMap.ts =====
+import type { RawlinsonsMapping } from './benchmarkTypes';
+
+export const RAWLINSONS_CATEGORY_MAP: Record<string, RawlinsonsMapping> = {
+  bathroom: { tradeKeywords: ['demolition', 'plumbing', 'waterproofing', 'tiling'], materialKeywords: ['wc', 'basin', 'bath', 'shower', 'tap', 'tile'] },
+  kitchen: { tradeKeywords: ['joinery', 'plumbing', 'electrical', 'tiling'], materialKeywords: ['cabinet', 'benchtop', 'sink', 'tap', 'splashback'] },
+  laundry: { tradeKeywords: ['plumbing', 'waterproofing', 'tiling', 'joinery'], materialKeywords: ['laundry', 'trough', 'tap', 'tile'] },
+  toilet: { tradeKeywords: ['plumbing', 'tiling', 'waterproofing'], materialKeywords: ['wc', 'toilet', 'basin', 'tap'] },
+  internalWalls: { tradeKeywords: ['wall framing', 'plasterboard', 'insulation'], materialKeywords: ['stud', 'plasterboard', 'batts'] },
+  plastering: { tradeKeywords: ['plasterboard', 'lining', 'ceiling'], materialKeywords: ['plasterboard', 'corner bead'] },
+  painting: { tradeKeywords: ['paint', 'painting'], materialKeywords: ['paint', 'wallpaper'] },
+  tiling: { tradeKeywords: ['tile', 'tiling'], materialKeywords: ['ceramic', 'mosaic', 'quarry', 'porcelain'] },
+  plumbing: { tradeKeywords: ['plumbing', 'drainage', 'sanitary'], materialKeywords: ['wc', 'basin', 'bath', 'shower', 'sink', 'tap', 'hot water'] },
+  electrical: { tradeKeywords: ['electrical', 'light', 'power point'], materialKeywords: ['light', 'power point', 'smoke alarm'] },
+  carpentry: { tradeKeywords: ['timber', 'framing', 'carpentry'], materialKeywords: ['pine', 'hardwood', 'flooring'] },
+  cabinetry: { tradeKeywords: ['joinery', 'cabinet'], materialKeywords: ['cabinet', 'benchtop', 'wardrobe'] },
+  flooring: { tradeKeywords: ['flooring', 'carpet', 'vinyl'], materialKeywords: ['carpet', 'vinyl', 'cork', 'rubber'] },
+  roofing: { tradeKeywords: ['roof', 'roofing'], materialKeywords: ['colorbond', 'tiles', 'downpipe'] },
+  concreting: { tradeKeywords: ['concrete', 'slab', 'formwork'], materialKeywords: ['concrete', 'reinforcement', 'mesh'] },
+};
+
+export function getRawlinsonsMapping(categoryId: string): RawlinsonsMapping {
+  return RAWLINSONS_CATEGORY_MAP[categoryId] || { tradeKeywords: [categoryId], materialKeywords: [categoryId] };
+}
+
+===== FILE: src/utils/pricing/scopeRecogniser.ts =====
+/* ─── Segal Build — Scope Recogniser & Category Relations ─── */
+import { ALL_CATEGORIES, getCategoryById } from '../categories/extended';
+import type { CategoryRelation } from '../categories/types';
+
+export type ScopeRecognition = { categoryId: string; confidence: number; label: string };
+
+const KEYWORD_MAP: Record<string, string[]> = {
+  bathroom: ['bathroom', 'bath', 'ensuite', 'shower', 'vanity', 'wet area'],
+  kitchen: ['kitchen', 'cook', 'benchtop', 'cabinet', 'pantry', 'splashback'],
+  laundry: ['laundry', 'trough', 'washing machine', 'dryer'],
+  toilet: ['toilet', 'wc', 'loo'],
+  flooring: ['floor', 'timber floor', 'carpet', 'vinyl', 'polished concrete', 'flooring'],
+  tiling: ['tiler', 'tile', 'tiling', 'grout', 'splashback tile'],
+  carpentry: ['carpenter', 'carpentry', 'skirting', 'architrave', 'fit-off carpentry'],
+  plastering: ['plasterer', 'plastering', 'plasterboard', 'sheeting', 'setting'],
+  brickwork: ['bricklayer', 'brickwork', 'bricklaying', 'repointing'],
+  painting: ['paint', 'painting', 'repaint', 'paintwork'],
+  windowsDoors: ['window', 'door', 'glazing', 'sliding door', 'stacker'],
+  demolition: ['demo', 'demolition', 'strip out', 'remove'],
+  structural: ['structural', 'wall removal', 'beam', 'lintel', 'load bearing'],
+  decking: ['deck', 'decking', 'merbau', 'composite deck'],
+  electrical: ['electrical', 'electrician', 'power point', 'switchboard', 'rewire', 'lighting'],
+  plumbing: ['plumbing', 'plumber', 'hot water', 'drainage', 'sewer', 'gas'],
+  waterproofing: ['waterproof', 'membrane', 'waterproofing'],
+  roofing: ['roof', 're-roof', 're-roofing', 'roofing', 'colorbond'],
+  extensions: ['extension', 'extend', 'room addition'],
+  newHomeBuild: ['new home', 'new house', 'new build', 'knock down rebuild'],
+  fencing: ['fence', 'fencing', 'colorbond fence', 'pool fence'],
+  concreting: ['concrete', 'slab', 'footing', 'crossover', 'path'],
+  hvac: ['air con', 'air conditioning', 'hvac', 'split system', 'ducted', 'heating', 'cooling'],
+  pergola: ['pergola', 'patio', 'alfresco', 'verandah', 'carport'],
+  landscaping: ['landscape', 'turf', 'garden', 'irrigation'],
+  pools: ['pool', 'spa'],
+  retainingWalls: ['retaining wall', 'retaining'],
+  secondStorey: ['second storey', 'double storey', 'upstairs', 'upper storey'],
+  grannyFlat: ['granny flat', 'dpu', 'dual living'],
+  insulation: ['insulation', 'insulate', 'batt', 'bulk insulation'],
+  smartHome: ['smart home', 'cctv', 'intercom', 'network', 'automation'],
+  fireSafety: ['smoke alarm', 'fire door', 'bal', 'fire safety'],
+  accessibility: ['accessibility', 'nda', 'grab rail', 'ramp', 'ndis'],
+  heritage: ['heritage', 'period', 'heritage listed'],
+  rendering: ['render', 'rendering', 'texture coat', 'acrylic render'],
+  cladding: ['cladding', 'weatherboard', 'fibre cement'],
+  acoustic: ['acoustic', 'soundproof', 'sound proof'],
+  guttersFascia: ['gutter', 'fascia', 'downpipe'],
+  roofRepairs: ['roof leak', 'roof repair', 'flashing', 'ridge cap'],
+  paving: ['paving', 'driveway', 'paver', 'exposed aggregate'],
+  multiUnit: ['dual occ', 'townhouse', 'triplex', 'multi unit'],
+  underpinning: ['underpin', 'restump', 'stump', 'slab repair'],
+  steelFraming: ['steel beam', 'steel framing', 'lvl beam'],
+  cabinetry: ['cabinet', 'built-in robe', 'bir', 'joinery', 'shelving'],
+  ceilings: ['ceiling', 'cornice', 'bulkhead', 'raking ceiling'],
+  internalWalls: ['internal wall', 'stud wall', 'plasterboard', 'partition'],
+};
+
+export function recogniseScope(description: string): ScopeRecognition[] {
+  const desc = description.toLowerCase();
+  const results: ScopeRecognition[] = [];
+  for (const [categoryId, keywords] of Object.entries(KEYWORD_MAP)) {
+    const cat = getCategoryById(categoryId);
+    if (!cat) continue;
+    let maxScore = 0;
+    for (const kw of keywords) {
+      if (desc.includes(kw)) {
+        const score = kw.length / desc.length;
+        if (score > maxScore) maxScore = score;
+      }
+    }
+    if (maxScore > 0) results.push({ categoryId, confidence: Math.min(maxScore * 5, 1), label: cat.label });
+  }
+  results.sort((a, b) => b.confidence - a.confidence);
+  if (results.length === 0 && ALL_CATEGORIES.length > 0) results.push({ categoryId: ALL_CATEGORIES[0].id, confidence: 0.1, label: ALL_CATEGORIES[0].label });
+  return results;
+}
+
+export async function recogniseScopeWithAI(description: string, _apiKey?: string): Promise<ScopeRecognition[]> {
+  return recogniseScope(description);
+}
+
+export function getRelatedCategories(categoryId: string): CategoryRelation[] {
+  const cat = getCategoryById(categoryId);
+  return cat?.relations || [];
+}
+
+export function getAutoAddCategories(categoryId: string): string[] {
+  return getRelatedCategories(categoryId).filter(r => r.type === 'auto').map(r => r.categoryId);
+}
+
+export function getSuggestedCategories(categoryId: string): string[] {
+  return getRelatedCategories(categoryId).filter(r => r.type === 'suggested').map(r => r.categoryId);
+}
+
+export function suggestContingency(workType: string): number {
+  const map: Record<string, number> = { new_build: 5, renovation: 10, structural: 15, maintenance: 5 };
+  return map[workType] || 10;
+}
+
+export function getAllCategories() {
+  return ALL_CATEGORIES;
+}
+
+export function getGroupedCategories(): Record<string, typeof ALL_CATEGORIES> {
+  const groups: Record<string, typeof ALL_CATEGORIES> = {};
+  for (const cat of ALL_CATEGORIES) {
+    if (!groups[cat.group]) groups[cat.group] = [];
+    groups[cat.group].push(cat);
+  }
+  return groups;
+}
+
+
+===== FILE: src/utils/pricing/tradeChain.ts =====
+/* ─── Segal Build — Trade Chain Suggestions ─── */
+import { getCategoryById } from '../categories/extended';
+
+export type ChainSuggestion = {
+  categoryId: string;
+  label: string;
+  relation: 'preceding' | 'following';
+  reason: string;
+};
+
+type ChainRule = { categoryId: string; relation: 'preceding' | 'following'; reason: string };
+
+const TRADE_CHAIN_MAP: Record<string, ChainRule[]> = {
+  plumbing: [
+    { categoryId: 'waterproofing', relation: 'following', reason: 'Wet-area plumbing typically flows into waterproofing and fit-off coordination.' },
+    { categoryId: 'electrical', relation: 'following', reason: 'Service trades are commonly coordinated together during fit-off.' },
+  ],
+  waterproofing: [
+    { categoryId: 'demolition', relation: 'preceding', reason: 'Renovation waterproofing typically follows strip-out and substrate prep.' },
+    { categoryId: 'plumbing', relation: 'preceding', reason: 'Waterproofing generally follows plumbing rough-in in wet areas.' },
+  ],
+  electrical: [
+    { categoryId: 'smartHome', relation: 'following', reason: 'Data, intercom, CCTV and smart devices commonly follow electrical scope.' },
+    { categoryId: 'fireSafety', relation: 'following', reason: 'Smoke alarms and compliance devices are commonly coordinated with electrical works.' },
+  ],
+  internalWalls: [
+    { categoryId: 'insulation', relation: 'following', reason: 'Wall framing usually leads into acoustic or thermal insulation.' },
+    { categoryId: 'painting', relation: 'following', reason: 'Wall sheeting and setting usually lead into painting.' },
+    { categoryId: 'electrical', relation: 'preceding', reason: 'Wall framing often requires electrical rough-in before final lining.' },
+  ],
+  ceilings: [
+    { categoryId: 'insulation', relation: 'preceding', reason: 'Ceiling replacement often requires insulation before sheeting.' },
+    { categoryId: 'painting', relation: 'following', reason: 'Ceiling installation usually leads into paint finishing.' },
+  ],
+  flooring: [
+    { categoryId: 'painting', relation: 'following', reason: 'Final floor works are often coordinated with final paint touch-ups.' },
+  ],
+  windowsDoors: [
+    { categoryId: 'painting', relation: 'following', reason: 'Window and door replacement commonly needs internal/external make-good painting.' },
+  ],
+  rendering: [
+    { categoryId: 'painting', relation: 'following', reason: 'Rendered finishes commonly require coating or paint protection.' },
+  ],
+  cladding: [
+    { categoryId: 'insulation', relation: 'preceding', reason: 'External wall cladding often pairs with insulation upgrades.' },
+    { categoryId: 'painting', relation: 'following', reason: 'Some cladding systems require paint finishing or touch-up.' },
+  ],
+  hvac: [
+    { categoryId: 'electrical', relation: 'preceding', reason: 'HVAC installation typically requires dedicated electrical circuits.' },
+  ],
+  concreting: [
+    { categoryId: 'landscaping', relation: 'following', reason: 'Concrete paths and slabs often form part of a broader external works package.' },
+    { categoryId: 'fencing', relation: 'following', reason: 'External works packages commonly combine concrete edges with fencing or gates.' },
+  ],
+  pergola: [
+    { categoryId: 'electrical', relation: 'following', reason: 'Pergolas and patios commonly add outdoor lighting or GPOs.' },
+    { categoryId: 'paving', relation: 'following', reason: 'Outdoor structures often lead into paving or hardscape works.' },
+  ],
+  landscaping: [
+    { categoryId: 'concreting', relation: 'preceding', reason: 'Landscape packages often require paths, edging or slab works first.' },
+  ],
+  structural: [
+    { categoryId: 'demolition', relation: 'preceding', reason: 'Structural openings and beam installs commonly require demolition first.' },
+  ],
+  pools: [
+    { categoryId: 'fencing', relation: 'following', reason: 'Pool projects require compliant fencing.' },
+    { categoryId: 'electrical', relation: 'following', reason: 'Pool equipment and lighting commonly require electrical works.' },
+    { categoryId: 'landscaping', relation: 'following', reason: 'Pool projects usually finish with external landscape works.' },
+  ],
+};
+
+export function getTradeChainSuggestions(categoryId: string, existingIds: string[]): ChainSuggestion[] {
+  const existing = new Set(existingIds);
+  const rules = TRADE_CHAIN_MAP[categoryId] || [];
+  const suggestions: ChainSuggestion[] = [];
+  for (const rule of rules) {
+    if (existing.has(rule.categoryId)) continue;
+    const category = getCategoryById(rule.categoryId);
+    if (!category) continue;
+    suggestions.push({
+      categoryId: rule.categoryId,
+      label: category.label,
+      relation: rule.relation,
+      reason: rule.reason,
+    });
+  }
+  return suggestions;
+}
+
+export function hasTradeChainSuggestions(categoryId: string, existingIds: string[]): boolean {
+  return getTradeChainSuggestions(categoryId, existingIds).length > 0;
+}
+
+
+===== FILE: src/utils/pricing/types.ts =====
+/* ─── Segal Build — Pricing Engine Types ─── */
+
+export type UnitType = 'area' | 'linear' | 'item' | 'allow';
+
+export type StageTemplate = {
+  name: string;
+  trade: string;
+  rate: number;
+  unit: UnitType;
+  duration: number;
+  description: string;
+};
+
+export type SolutionTemplate = {
+  name: string;
+  description: string;
+  multiplier: number;
+  stages: StageTemplate[];
+};
+
+
+===== FILE: src/utils/pricing/units/baseUnits.ts =====
+import { ELECTRICAL_UNITS } from './electrical';
+import { PLUMBING_UNITS } from './plumbing';
+import { TILING_UNITS } from './tiling';
+import type { ParametricUnit } from './types';
+
+export const BASE_PARAMETRIC_UNITS: ParametricUnit[] = [
+  ...ELECTRICAL_UNITS,
+  ...PLUMBING_UNITS,
+  ...TILING_UNITS,
+];
+
+
+===== FILE: src/utils/pricing/units/electrical.ts =====
+import { unit, type ParametricUnit } from './types';
+
+export const ELECTRICAL_UNITS: ParametricUnit[] = [
+  unit('el-gpo-double', 'electrical', 'Double GPO (power point)', 'Supply & install double GPO', 'each', 110, 'Electrical', 4, 'services'),
+  unit('el-gpo-usb', 'electrical', 'USB GPO (double + USB)', 'Supply & install double GPO with USB charging', 'each', 145, 'Electrical', 1, 'services'),
+  unit('el-downlight', 'electrical', 'LED Downlight', 'Supply & install dimmable LED downlight', 'each', 85, 'Electrical', 6, 'services'),
+  unit('el-switch', 'electrical', 'Light Switch (single)', 'Supply & install single gang light switch', 'each', 65, 'Electrical', 2, 'services'),
+  unit('el-switch-2g', 'electrical', 'Light Switch (double gang)', 'Supply & install double gang light switch', 'each', 75, 'Electrical', 1, 'services'),
+  unit('el-exhaust-fan', 'electrical', 'Exhaust Fan (ducted)', 'Supply & install exhaust fan ducted to outside', 'each', 350, 'Electrical', 1, 'services'),
+  unit('el-heat-lamp', 'electrical', 'Bathroom Heat Lamp / Fan Unit', 'Supply & install 3-in-1 heat lamp, fan, light', 'each', 450, 'Electrical', 1, 'services'),
+  unit('el-smoke-alarm', 'electrical', 'Smoke Alarm (240V)', '240V photoelectric interconnected smoke alarm', 'each', 150, 'Electrical', 2, 'services'),
+  unit('el-data-cat6', 'electrical', 'Data Point (Cat6)', 'Cat6 data point - wired to patch panel', 'each', 195, 'Electrical', 1, 'services'),
+  unit('el-tv-point', 'electrical', 'TV Antenna Point', 'Supply & install TV antenna outlet', 'each', 120, 'Electrical', 1, 'services'),
+  unit('el-outside-light', 'electrical', 'External Light Point', 'Supply & install external light fitting', 'each', 195, 'Electrical', 1, 'services'),
+  unit('el-sensor-light', 'electrical', 'Sensor Light (security)', 'Supply & install motion sensor security light', 'each', 220, 'Electrical', 1, 'services'),
+  unit('el-switchboard', 'electrical', 'Switchboard Upgrade', 'Upgrade switchboard with safety switches', 'allow', 2200, 'Electrical', 1, 'services'),
+  unit('el-circuit', 'electrical', 'New Power Circuit', 'Run new dedicated power circuit from board', 'each', 380, 'Electrical', 1, 'services'),
+];
+
+
+===== FILE: src/utils/pricing/units/kitchenJoinery.ts =====
+import { unit, type ParametricUnit } from './types';
+
+export const KITCHEN_JOINERY_UNITS: ParametricUnit[] = [
+  unit('kt-cabinetry', 'kitchen', 'Base + Wall Cabinetry', 'Supply & install modular kitchen cabinetry', 'lm', 1100, 'Cabinetry', 4, 'structure'),
+  unit('kt-bench-lam', 'kitchen', 'Laminate Benchtop', 'Supply & install laminate benchtop', 'lm', 280, 'Cabinetry', 4, 'structure'),
+  unit('kt-bench-stone', 'kitchen', 'Stone Benchtop (Caesarstone)', 'Supply & install 20mm Caesarstone benchtop', 'lm', 850, 'Cabinetry', 4, 'structure'),
+  unit('kt-sink', 'kitchen', 'Kitchen Sink (Undermount)', 'Supply & install undermount kitchen sink', 'each', 450, 'Plumbing', 1, 'services'),
+  unit('kt-tap', 'kitchen', 'Kitchen Mixer Tap', 'Supply & install kitchen mixer tapware', 'each', 280, 'Plumbing', 1, 'services'),
+  unit('kt-appliance-con', 'kitchen', 'Appliance Connection', 'Connect oven, cooktop or dishwasher', 'each', 220, 'Electrical', 2, 'services'),
+  unit('kt-splashback', 'kitchen', 'Tile Splashback', 'Supply & lay tile splashback behind bench', 'm2', 160, 'Tiling', 2, 'finishes'),
+  unit('cb-bir', 'cabinetry', 'Built-in Robe (BIR)', 'Supply & install built-in wardrobe', 'lm', 750, 'Cabinetry', 2, 'structure'),
+  unit('cb-vanity', 'cabinetry', 'Bathroom Vanity Unit', 'Supply & install vanity unit with basin', 'each', 1200, 'Cabinetry', 1, 'structure'),
+  unit('cb-mirror', 'cabinetry', 'Bathroom Mirror / Cabinet', 'Supply & install bathroom mirror or cabinet', 'each', 350, 'Cabinetry', 1, 'structure'),
+  unit('cb-shelving', 'cabinetry', 'Adjustable Shelving', 'Supply & install adjustable shelf system', 'lm', 180, 'Cabinetry', 3, 'structure'),
+];
+
+
+===== FILE: src/utils/pricing/units/openingsHvac.ts =====
+import { unit, type ParametricUnit } from './types';
+
+export const OPENINGS_HVAC_UNITS: ParametricUnit[] = [
+  unit('wd-door-int', 'windowsDoors', 'Internal Door (Flush Panel)', 'Supply & install internal flush panel door', 'each', 650, 'Carpentry', 2, 'structure'),
+  unit('wd-door-ext', 'windowsDoors', 'External Door (Solid Core)', 'Supply & install solid core external door', 'each', 1200, 'Carpentry', 1, 'structure'),
+  unit('wd-window-alum', 'windowsDoors', 'Aluminium Window (Single)', 'Supply & install aluminium framed window', 'each', 850, 'Carpentry', 2, 'structure'),
+  unit('wd-window-dg', 'windowsDoors', 'Window (Double Glazed)', 'Supply & install double glazed window unit', 'each', 1400, 'Carpentry', 1, 'structure'),
+  unit('wd-sliding-door', 'windowsDoors', 'Sliding Door (Alum Frame)', 'Supply & install aluminium sliding door', 'each', 2200, 'Carpentry', 1, 'structure'),
+  unit('wd-door-hardware', 'windowsDoors', 'Door Hardware Set', 'Supply & install lever handle set per door', 'each', 120, 'Carpentry', 2, 'structure'),
+  unit('wd-door-closer', 'windowsDoors', 'Door Closer (Fire Door)', 'Supply & install hydraulic door closer', 'each', 180, 'Carpentry', 1, 'structure'),
+  unit('hv-split-2.5', 'hvac', '2.5kW Split System', 'Supply & install 2.5kW split system AC', 'each', 1800, 'HVAC', 1, 'services'),
+  unit('hv-split-7kw', 'hvac', '7.0kW Split System', 'Supply & install 7.0kW split system AC', 'each', 2800, 'HVAC', 1, 'services'),
+  unit('hv-ducted', 'hvac', 'Ducted System (full)', 'Supply & install ducted HVAC system', 'allow', 12500, 'HVAC', 1, 'services'),
+  unit('hv-vent', 'hvac', 'Return Air / Vent Grill', 'Supply & install return air box and grill', 'each', 450, 'HVAC', 1, 'services'),
+  unit('hv-duct-zone', 'hvac', 'Ducted Zone (add-on)', 'Add a zone to existing ducted system', 'each', 850, 'HVAC', 1, 'services'),
+];
+
+
+===== FILE: src/utils/pricing/units/paintingFlooring.ts =====
+import { unit, type ParametricUnit } from './types';
+
+export const PAINTING_FLOORING_UNITS: ParametricUnit[] = [
+  unit('pt-walls-int', 'painting', 'Interior Wall Paint (2 coat)', 'Two coats premium acrylic - walls', 'm2', 18, 'Painting', 40, 'finishes'),
+  unit('pt-ceiling', 'painting', 'Ceiling Paint (2 coat)', 'Two coats ceiling white - ceilings', 'm2', 15, 'Painting', 15, 'finishes'),
+  unit('pt-trim-door', 'painting', 'Door + Trim Paint', 'Paint doors, architraves, skirting', 'each', 120, 'Painting', 2, 'finishes'),
+  unit('pt-walls-ext', 'painting', 'Exterior Wall Paint (2 coat)', 'Two coats exterior acrylic - external walls', 'm2', 28, 'Painting', 20, 'finishes'),
+  unit('pt-prep', 'painting', 'Surface Prep & Fill', 'Prep, fill, sand all surfaces before paint', 'm2', 8, 'Painting', 40, 'preparation'),
+  unit('fl-carpet', 'flooring', 'Carpet + Underlay', 'Supply & lay carpet with premium underlay', 'm2', 65, 'Flooring', 12, 'finishes'),
+  unit('fl-timber-eng', 'flooring', 'Engineered Timber Floor', 'Supply & lay engineered timber flooring', 'm2', 120, 'Flooring', 15, 'finishes'),
+  unit('fl-vinyl-plank', 'flooring', 'Vinyl Plank (LVP)', 'Supply & lay luxury vinyl plank flooring', 'm2', 75, 'Flooring', 15, 'finishes'),
+  unit('fl-tile', 'flooring', 'Floor Tiles (Flooring)', 'Supply & lay ceramic/porcelain floor tiles', 'm2', 95, 'Flooring', 10, 'finishes'),
+  unit('fl-subfloor-prep', 'flooring', 'Subfloor Prep & Levelling', 'Prepare and level subfloor before covering', 'm2', 35, 'Flooring', 15, 'preparation'),
+];
+
+
+===== FILE: src/utils/pricing/units/part2Units.ts =====
+import { KITCHEN_JOINERY_UNITS } from './kitchenJoinery';
+import { OPENINGS_HVAC_UNITS } from './openingsHvac';
+import { PAINTING_FLOORING_UNITS } from './paintingFlooring';
+import { SAFETY_SMART_INSULATION_UNITS } from './safetySmartInsulation';
+import type { ParametricUnit } from './types';
+import { WATERPROOFING_UNITS } from './waterproofing';
+
+export const PART2_PARAMETRIC_UNITS: ParametricUnit[] = [
+  ...WATERPROOFING_UNITS,
+  ...PAINTING_FLOORING_UNITS,
+  ...KITCHEN_JOINERY_UNITS,
+  ...OPENINGS_HVAC_UNITS,
+  ...SAFETY_SMART_INSULATION_UNITS,
+];
+
+
+===== FILE: src/utils/pricing/units/plumbing.ts =====
+import { unit, type ParametricUnit } from './types';
+
+export const PLUMBING_UNITS: ParametricUnit[] = [
+  unit('pl-water-pt', 'plumbing', 'Water Point (Rough-In)', 'Rough-in hot or cold water service point', 'each', 180, 'Plumbing', 3, 'services'),
+  unit('pl-drain-pt', 'plumbing', 'Drainage Point (Rough-In)', 'Rough-in waste drainage point', 'each', 220, 'Plumbing', 3, 'services'),
+  unit('pl-toilet-suite', 'plumbing', 'Toilet Suite (Back-to-Wall)', 'Supply & install back-to-wall toilet suite', 'each', 650, 'Plumbing', 1, 'services'),
+  unit('pl-shower-mixer', 'plumbing', 'Shower Mixer + Rose', 'Supply & install shower mixer tap + shower rose', 'each', 380, 'Plumbing', 1, 'services'),
+  unit('pl-basin-mixer', 'plumbing', 'Basin Mixer Tap', 'Supply & install basin mixer tapware', 'each', 280, 'Plumbing', 1, 'services'),
+  unit('pl-floor-waste', 'plumbing', 'Floor Waste', 'Supply & install chrome floor waste grate', 'each', 120, 'Plumbing', 1, 'services'),
+  unit('pl-hw-sys', 'plumbing', 'Hot Water System (26L Gas)', 'Supply & install continuous flow gas HW system', 'allow', 2500, 'Plumbing', 1, 'services'),
+  unit('pl-hw-elec', 'plumbing', 'Hot Water System (Electric)', 'Supply & install electric storage HW system', 'allow', 1800, 'Plumbing', 1, 'services'),
+  unit('pl-pressure-test', 'plumbing', 'Pressure Test', 'Pressure test all new plumbing lines', 'allow', 250, 'Plumbing', 1, 'services'),
+  unit('pl-garden-tap', 'plumbing', 'Garden Tap (External)', 'Supply & install external garden tap hose cock', 'each', 180, 'Plumbing', 1, 'services'),
+  unit('pl-washing-taps', 'plumbing', 'Washing Machine Taps', 'Supply & install cold + hot washing machine taps', 'each', 220, 'Plumbing', 1, 'services'),
+  unit('pl-isolation-valve', 'plumbing', 'Isolation Valve', 'Supply & install inline isolation valve', 'each', 85, 'Plumbing', 2, 'services'),
+  unit('pl-gas-bayonet', 'plumbing', 'Gas Bayonet Point', 'Supply & install gas bayonet outlet', 'each', 280, 'Plumbing', 1, 'services'),
+];
+
+
+===== FILE: src/utils/pricing/units/safetySmartInsulation.ts =====
+import { unit, type ParametricUnit } from './types';
+
+export const SAFETY_SMART_INSULATION_UNITS: ParametricUnit[] = [
+  unit('fs-smoke', 'fireSafety', 'Smoke Alarm (240V)', '240V photoelectric smoke alarm, interconnected', 'each', 150, 'Compliance', 2, 'services'),
+  unit('fs-co-detector', 'fireSafety', 'CO Detector', 'Supply & install carbon monoxide detector', 'each', 180, 'Compliance', 1, 'services'),
+  unit('fs-fire-blanket', 'fireSafety', 'Fire Blanket', 'Supply & install fire blanket (kitchen)', 'each', 65, 'Compliance', 1, 'services'),
+  unit('fs-extinguisher', 'fireSafety', 'Fire Extinguisher', 'Supply & install 1kg dry powder extinguisher', 'each', 95, 'Compliance', 1, 'services'),
+  unit('sm-cat6', 'smartHome', 'Cat6 Data Point', 'Data point wired to patch panel', 'each', 195, 'Data', 2, 'services'),
+  unit('sm-cctv', 'smartHome', 'CCTV Camera', 'Supply & install IP CCTV camera', 'each', 450, 'Data', 2, 'services'),
+  unit('sm-intercom', 'smartHome', 'Intercom Station', 'Supply & install video intercom station', 'each', 850, 'Data', 1, 'services'),
+  unit('sm-sensor', 'smartHome', 'Smart Motion Sensor', 'Supply & install smart motion sensor', 'each', 180, 'Data', 2, 'services'),
+  unit('sm-doorbell', 'smartHome', 'Video Doorbell', 'Supply & install video doorbell unit', 'each', 280, 'Data', 1, 'services'),
+  unit('in-ceiling-batts', 'insulation', 'Ceiling Batts (R3.5)', 'Supply & install R3.5 ceiling insulation batts', 'm2', 18, 'Insulation', 20, 'structure'),
+  unit('in-wall-batts', 'insulation', 'Wall Batts (R2.0)', 'Supply & install R2.0 wall insulation batts', 'm2', 25, 'Insulation', 30, 'structure'),
+  unit('in-underfloor', 'insulation', 'Underfloor Insulation', 'Supply & install reflective underfloor foil', 'm2', 22, 'Insulation', 20, 'structure'),
+];
+
+
+===== FILE: src/utils/pricing/units/tiling.ts =====
+import { unit, type ParametricUnit } from './types';
+
+export const TILING_UNITS: ParametricUnit[] = [
+  unit('tl-floor-std', 'tiling', 'Floor Tile (Standard Ceramic)', 'Supply & lay standard ceramic floor tiles', 'm2', 95, 'Tiling', 5, 'finishes'),
+  unit('tl-floor-prem', 'tiling', 'Floor Tile (Rectified Porcelain)', 'Supply & lay rectified porcelain floor tiles', 'm2', 145, 'Tiling', 5, 'finishes'),
+  unit('tl-wall-std', 'tiling', 'Wall Tile (Standard Ceramic)', 'Supply & lay standard ceramic wall tiles', 'm2', 105, 'Tiling', 10, 'finishes'),
+  unit('tl-wall-prem', 'tiling', 'Wall Tile (Large Format Premium)', 'Supply & lay large format premium wall tiles', 'm2', 165, 'Tiling', 10, 'finishes'),
+  unit('tl-waterproof', 'tiling', 'Waterproofing Membrane', 'Class III liquid membrane per AS3740', 'm2', 55, 'Tiling', 5, 'finishes'),
+  unit('tl-tile-trim', 'tiling', 'Tile Trim / Edge Strip', 'Supply & install aluminium tile trim', 'lm', 25, 'Tiling', 6, 'finishes'),
+  unit('tl-grout-seal', 'tiling', 'Grout Sealer', 'Apply grout sealer to all tiled surfaces', 'm2', 12, 'Tiling', 10, 'finishes'),
+  unit('tl-shower-screen', 'tiling', 'Frameless Shower Screen', 'Supply & install frameless shower screen', 'each', 1800, 'Tiling', 1, 'finishes'),
+];
+
+
+===== FILE: src/utils/pricing/units/types.ts =====
+export type PhaseKey = 'preparation' | 'structure' | 'services' | 'finishes' | 'external';
+export type UnitMeasure = 'each' | 'lm' | 'm2' | 'allow';
+
+export type ParametricUnit = {
+  id: string;
+  categoryId: string;
+  label: string;
+  description: string;
+  unit: UnitMeasure;
+  rate: number;
+  trade: string;
+  defaultQty?: number;
+  complianceRef?: string;
+  phase?: PhaseKey;
+  rateSource?: string;
+  rateConfidence?: 'benchmark_unverified' | 'verified' | 'quoted';
+  lastReviewed?: string;
+};
+
+const DEFAULT_UNIT_RATE_SOURCE = 'Benchmark default - verify with current Victorian supplier/subcontractor pricing';
+const DEFAULT_UNIT_RATE_CONFIDENCE: ParametricUnit['rateConfidence'] = 'benchmark_unverified';
+const DEFAULT_UNIT_REVIEW_DATE = '2026-04-29';
+
+export function unit(
+  id: string, categoryId: string, label: string, description: string,
+  measure: UnitMeasure, rate: number, trade: string, defaultQty: number, phase: PhaseKey,
+): ParametricUnit {
+  return {
+    id, categoryId, label, description, unit: measure, rate, trade, defaultQty, phase,
+    rateSource: DEFAULT_UNIT_RATE_SOURCE, rateConfidence: DEFAULT_UNIT_RATE_CONFIDENCE, lastReviewed: DEFAULT_UNIT_REVIEW_DATE,
+  };
+}
+
+
+===== FILE: src/utils/pricing/units/waterproofing.ts =====
+import { unit, type ParametricUnit } from './types';
+
+export const WATERPROOFING_UNITS: ParametricUnit[] = [
+  unit('wp-liquid-mem', 'waterproofing', 'Liquid Membrane (Class III)', 'Liquid membrane per AS3740 - floor + junctions', 'm2', 55, 'Waterproofing', 8, 'finishes'),
+  unit('wp-sheet-mem', 'waterproofing', 'Sheet Membrane', 'Sheet membrane for wet area floor', 'm2', 65, 'Waterproofing', 5, 'finishes'),
+  unit('wp-bond-breaker', 'waterproofing', 'Bond Breaker Tape', 'Bond breaker tape at wall/floor junctions', 'lm', 18, 'Waterproofing', 10, 'finishes'),
+  unit('wp-flood-test', 'waterproofing', 'Flood Test', 'Flood test all waterproofed areas', 'allow', 180, 'Waterproofing', 1, 'finishes'),
+];
+
+
+===== FILE: src/utils/rateMemory.ts =====
+import { BoQItem } from '../types';
+
+const STORAGE_KEY = 'segal_build_rate_memory';
+
+export interface RateMemoryMap {
+  [categoryId: string]: number;
+}
+
+/**
+ * Load remembered rates from localStorage
+ */
+export const loadRateMemory = (): RateMemoryMap => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? JSON.parse(stored) : {};
+  } catch (error) {
+    console.error('Failed to load rate memory:', error);
+    return {};
+  }
+};
+
+/**
+ * Save a specific rate override to localStorage
+ */
+export const saveRateOverride = (categoryId: string, rate: number): void => {
+  try {
+    const current = loadRateMemory();
+    current[categoryId] = rate;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
+  } catch (error) {
+    console.error('Failed to save rate override:', error);
+  }
+};
+
+/**
+ * Get a remembered rate for a specific category
+ */
+export const getRememberedRate = (categoryId: string): number | undefined => {
+  const memory = loadRateMemory();
+  return memory[categoryId];
+};
+
+/**
+ * Clear all rate memory
+ */
+export const clearRateMemory = (): void => {
+  localStorage.removeItem(STORAGE_KEY);
+};
+
+/**
+ * Apply remembered rates to a list of BoQ items
+ * Returns a new array with updated rates where matches are found
+ */
+export const applyRememberedRates = (items: BoQItem[]): BoQItem[] => {
+  const memory = loadRateMemory();
+  
+  return items.map(item => {
+    // Only apply to parametric items that have a category ID and no existing override
+    if (item.type === 'parametric' && item.categoryId && item.rate !== undefined) {
+      const rememberedRate = memory[item.categoryId];
+      
+      // If we have a remembered rate and it's different from current, apply it
+      if (rememberedRate !== undefined && rememberedRate !== item.rate) {
+        return {
+          ...item,
+          rate: rememberedRate,
+          isRateOverridden: true // Mark as overridden so UI shows green
+        };
+      }
+    }
+    return item;
+  });
+};
+
+
+===== FILE: src/utils/rates/materialRateMetadata.ts =====
+export const RAWLINSONS_MATERIAL_RATES_2021_METADATA = {
+  source: 'Rawlinsons Construction Cost Guide 2021 (Edition 29)',
+  location: 'Melbourne, VIC',
+  currency: 'AUD',
+  gst_included: false,
+  base_date: '2021-01-01',
+  pricing_notes:
+    "All rates are GST-exclusive. 'supply_only' denotes explicit material delivery costs. 'pc_value' denotes Prime Cost values (standard industry proxy for fixture/material supply cost). Installation, labour, waste, fixings, and builder margins are excluded.",
+  column_reference: 'Data extracted from Melbourne column (4th city) of multi-city tables.',
+};
+
+export const MATERIAL_RATE_ESCALATION_TARGET_YEAR = 2025;
+export const DEFAULT_MATERIAL_ESCALATION_RATE = 0.05;
+export const GENERAL_TRADE_INSTALL_MARGIN = 0.075;
+export const MEP_INSTALL_MARGIN = 0.05;

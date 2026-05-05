@@ -1,0 +1,1779 @@
+===== FILE: src/types/domain.ts =====
+/* ─── Segal Build — Domain Types ─── */
+
+export type Company = {
+  id: string;
+  name: string;
+  abn: string;
+  licence: string;
+  phone: string;
+  email: string;
+  websiteUrl?: string;
+  logoUrl: string;
+  defaultOverheadPercent: number;
+  defaultProfitPercent: number;
+};
+
+export type ProjectCustomer = {
+  name: string;
+  email: string;
+  phone: string;
+};
+
+export type Project = {
+  id: string;
+  name: string;
+  address: string;
+  customer: ProjectCustomer;
+  companyId: string;
+  createdAt: string;
+  geminiApiKey?: string;
+  heroPhoto?: string;
+};
+
+export type PCItem = {
+  id: string;
+  description: string;
+  allowance: number;
+  unit: string;
+  actualCost?: number;
+  suppliedBy?: string;
+};
+
+export type InclusionItem = {
+  id: string;
+  text: string;
+  isDefault: boolean;
+};
+
+export type ExclusionItem = {
+  id: string;
+  text: string;
+  isDefault: boolean;
+};
+
+export type JobStage = {
+  name: string;
+  trade: string;
+  cost: number;
+  duration: number;
+  description: string;
+  status: 'not-started' | 'in-progress' | 'complete';
+  rateOverrideNote?: string;
+  pricingSource?: PricingSourceMeta;
+};
+
+export type Solution = {
+  name: string;
+  totalCost: number;
+  duration: number;
+  stages: JobStage[];
+  description: string;
+};
+
+export type ParametricItem = {
+  id: string;
+  unitId: string;
+  label: string;
+  unit: 'each' | 'lm' | 'm2' | 'allow';
+  rate: number;
+  quantity: number;
+  notes?: string;
+  phase?: 'preparation' | 'structure' | 'services' | 'finishes' | 'external';
+  pricingSource?: PricingSourceMeta;
+};
+
+export type PricingSourceMeta = {
+  source: string;
+  sourceType: 'benchmark' | 'manual' | 'supplier_quote' | 'subcontractor_quote' | 'rate_memory';
+  costType: 'composite' | 'material_only' | 'labour_only' | 'hire' | 'provision' | 'pc_value';
+  baseRate: number;
+  escalationFactor?: number;
+  escalatedRate?: number;
+  gstIncluded: boolean;
+  preliminariesIncluded: boolean;
+  confidence: 'benchmark_unverified' | 'verified' | 'quoted';
+  baseDate?: string;
+  notes?: string;
+};
+
+export type QuestionAnswer = {
+  questionId: string;
+  answer: string;
+};
+
+export type QuoteScope = {
+  id: string;
+  categoryId: string;
+  categoryLabel: string;
+  description: string;
+  builderNotes?: string;
+  selectedType?: string;
+  stages: JobStage[];
+  dimensions: {
+    width: number;
+    length: number;
+    height: number;
+  };
+  answers: Record<string, string>;
+  questionAnswers?: QuestionAnswer[];
+  pcItems: PCItem[];
+  inclusions: InclusionItem[];
+  exclusions: ExclusionItem[];
+  parametricItems?: ParametricItem[];
+  photos?: string[];
+};
+
+export type ProjectBaseline = {
+  totalAreaM2: number;
+  storeys: 'single' | 'double' | 'multi';
+  siteAccess: 'easy' | 'moderate' | 'difficult';
+  ceilingHeightM: number;
+  notes?: string;
+};
+
+export type QuotePricing = {
+  overheadPercent: number;
+  profitPercent: number;
+  contingencyPercent: number;
+  gstPercent: number;
+  tradeCost: number;
+  overhead: number;
+  profit: number;
+  contingency: number;
+  preliminariesPercent?: number;
+  preliminariesAmount?: number;
+  gst: number;
+  clientTotal: number;
+  totalIncGst: number;
+  total: number;
+  overheadAmount: number;
+  profitAmount: number;
+  contingencyAmount: number;
+  preliminariesAmountExGst?: number;
+  subtotalExclGst: number;
+  gstAmount: number;
+};
+
+export type PreliminariesSettings = {
+  enabled: boolean;
+  mode: 'percent' | 'fixed';
+  percent: number;
+  amount: number;
+};
+
+export type Signature = {
+  name: string;
+  date: string;
+  dataUrl: string;
+};
+
+export type ChangeLogEntry = {
+  id: string;
+  action: string;
+  timestamp: string;
+  user: string;
+  details: string;
+};
+
+export type EstimatorReviewFlag = {
+  id: string;
+  severity: 'info' | 'warning' | 'critical';
+  title: string;
+  message: string;
+  scopeId?: string;
+  categoryLabel?: string;
+};
+
+export type ProgressPhoto = {
+  id: string;
+  url: string;
+  caption: string;
+  stage: string;
+  date: string;
+};
+
+export type ProgressUpdate = {
+  text: string;
+  timestamp: string;
+};
+
+export type ProgressStage = {
+  name: string;
+  status: 'not-started' | 'in-progress' | 'complete';
+};
+
+export type ExternalQuoteReference = {
+  referenceNumber: string;
+  provider?: string;
+  originalQuoteDate?: string;
+  originalApprovedAmount: number;
+  summaryScope: string;
+  notes?: string;
+};
+
+export type Variation = {
+  id: string;
+  title: string;
+  description: string;
+  status: 'draft' | 'sent' | 'approved' | 'rejected';
+  documentType: 'quote' | 'variation';
+  scopes: QuoteScope[];
+  pricing: QuotePricing;
+  signature?: Signature;
+  changeLog: ChangeLogEntry[];
+  referenceQuoteId?: string;
+  reasonForChange?: string;
+  variationNumber?: string;
+  costImpact?: 'additional' | 'credit' | 'no-change';
+  source?: 'internal' | 'external';
+  externalQuoteRef?: ExternalQuoteReference;
+  createdAt: string;
+  updatedAt: string;
+  internalNotes: string[];
+  progressPhotos?: ProgressPhoto[];
+  progressStages?: ProgressStage[];
+  baseline?: ProjectBaseline;
+  preliminaries?: PreliminariesSettings;
+  progressUpdates?: ProgressUpdate[];
+  reviewFlags?: EstimatorReviewFlag[];
+};
+
+
+===== FILE: src/types/index.ts =====
+export * from './domain';
+export type { AppState } from './appState';
+
+// Legacy type aliases used by rateMemory.ts and tradeTemplates.ts
+export type BoQItem = {
+  id: string;
+  type: 'parametric' | 'fixed';
+  categoryId?: string;
+  name: string;
+  unit: string;
+  quantity: number;
+  rate?: number;
+  fixedPrice?: number;
+  isRateOverridden?: boolean;
+};
+
+export type { TradeCategory } from '../utils/tradeCategories';
+
+
+===== FILE: src/utils/ai/tradeAnalyser.ts =====
+import { buildTradePrompt } from './tradeAnalyserPrompt';
+import { keywordFallback } from './tradeAnalyserFallback';
+import { mergeDetectedTrades } from './tradeAnalyserMerge';
+import { parseGeminiResponse } from './tradeAnalyserParser';
+import type { AnalysisResult } from './tradeAnalyserTypes';
+
+export type { AnalysisResult, TradeAnalysis, TradeItem } from './tradeAnalyserTypes';
+
+export async function analyseScope(
+  scopeText: string,
+  projectAreaM2: number,
+  apiKey?: string,
+): Promise<AnalysisResult> {
+  if (!scopeText.trim()) return { trades: [], fallback: true };
+  if (!apiKey) return { trades: keywordFallback(scopeText), fallback: true };
+
+  try {
+    const prompt = buildTradePrompt(scopeText, projectAreaM2);
+    const models = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-1.5-flash', 'gemini-2.0-flash'];
+
+    for (const modelId of models) {
+      try {
+        const resp = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { maxOutputTokens: 4096, temperature: 0.2 },
+            }),
+          },
+        );
+        if (resp.status === 429 || resp.status === 503) continue;
+        if (!resp.ok) continue;
+        const data = await resp.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text) continue;
+        const trades = parseGeminiResponse(text);
+        if (trades.length > 0) {
+          return { trades: mergeDetectedTrades(trades, keywordFallback(scopeText)), model: modelId, fallback: false };
+        }
+      } catch {
+        continue;
+      }
+    }
+  } catch {
+    /* fall through */
+  }
+
+  return { trades: keywordFallback(scopeText), fallback: true };
+}
+
+
+===== FILE: src/utils/ai/tradeAnalyserFallback.ts =====
+import type { TradeAnalysis } from './tradeAnalyserTypes';
+import { getCategoryById } from '../categories/extended';
+import { TRADE_RATE_DIRECTORY } from '../trades/tradeRateDirectory';
+import { getTradeCategoryId } from '../trades/tradeIds';
+
+const KEYWORD_TRADE_MAP: Record<string, { label: string; keywords: string[] }> = {
+  electrical: { label: 'Electrical', keywords: ['electrical', 'electrician', 'power point', 'gpo', 'downlight', 'light', 'switch', 'switchboard', 'exhaust fan', 'smoke alarm'] },
+  plumbing: { label: 'Plumbing & Drainage', keywords: ['plumbing', 'plumber', 'hot water', 'drainage', 'toilet', 'shower', 'basin', 'tap', 'pipe', 'sewer', 'gas'] },
+  tiling: { label: 'Tiling', keywords: ['tile', 'tiling', 'ceramic', 'porcelain', 'grout'] },
+  carpentry: { label: 'Carpentry', keywords: ['carpenter', 'carpentry', 'skirting', 'architrave', 'fit-off carpentry'] },
+  plastering: { label: 'Plastering', keywords: ['plasterer', 'plastering', 'plasterboard', 'sheeting', 'setting'] },
+  brickwork: { label: 'Brickwork', keywords: ['bricklayer', 'brickwork', 'bricklaying', 'repointing'] },
+  waterproofing: { label: 'Waterproofing', keywords: ['waterproof', 'membrane', 'as3740'] },
+  painting: { label: 'Painting', keywords: ['paint', 'painting', 'primer', 'undercoat'] },
+  flooring: { label: 'Flooring', keywords: ['floor', 'carpet', 'timber floor', 'vinyl'] },
+  demolition: { label: 'Demolition', keywords: ['demo', 'demolition', 'remove', 'strip out'] },
+  internalWalls: { label: 'Internal Walls', keywords: ['stud wall', 'framing', 'plasterboard', 'partition'] },
+  insulation: { label: 'Insulation', keywords: ['insulation', 'batt', 'insulate'] },
+  windowsDoors: { label: 'Windows & Doors', keywords: ['window', 'door', 'glazing'] },
+  ceilings: { label: 'Ceilings', keywords: ['ceiling', 'cornice'] },
+  fireSafety: { label: 'Fire & Safety', keywords: ['smoke alarm', 'fire safety'] },
+  cabinetry: { label: 'Cabinetry & Joinery', keywords: ['vanity', 'cabinet', 'joinery'] },
+  structural: { label: 'Structural', keywords: ['structural', 'load bearing', 'load-bearing', 'beam', 'lintel', 'wall removal', 'opening'] },
+  decking: { label: 'Decking', keywords: ['deck', 'decking', 'merbau', 'composite deck'] },
+  roofing: { label: 'Roofing', keywords: ['roof', 'roofing', 're-roof', 'colorbond', 'skylight'] },
+  fencing: { label: 'Fencing & Gates', keywords: ['fence', 'fencing', 'gate', 'pool fence', 'colorbond fence'] },
+  concreting: { label: 'Concreting', keywords: ['concrete', 'slab', 'footing', 'footings', 'crossover', 'driveway'] },
+  hvac: { label: 'HVAC', keywords: ['air con', 'air conditioning', 'hvac', 'split system', 'ducted', 'heating', 'cooling'] },
+  pergola: { label: 'Pergola & Patio', keywords: ['pergola', 'patio', 'alfresco', 'verandah', 'carport'] },
+  landscaping: { label: 'Landscaping', keywords: ['landscape', 'landscaping', 'turf', 'garden', 'irrigation'] },
+  pools: { label: 'Pool & Spa', keywords: ['pool', 'spa'] },
+  retainingWalls: { label: 'Retaining Walls', keywords: ['retaining wall', 'retaining'] },
+  rendering: { label: 'Rendering', keywords: ['render', 'rendering', 'texture coat', 'acrylic render'] },
+  cladding: { label: 'Cladding', keywords: ['cladding', 'weatherboard', 'fibre cement'] },
+  paving: { label: 'Paving & Driveways', keywords: ['paving', 'pavers', 'paver', 'exposed aggregate'] },
+  underpinning: { label: 'Underpinning', keywords: ['underpin', 'underpinning', 'restump', 'stump', 'slab repair'] },
+  steelFraming: { label: 'Steel & Framing', keywords: ['steel beam', 'steel framing', 'lvl beam', 'steel post'] },
+  smartHome: { label: 'Smart Home', keywords: ['smart home', 'cctv', 'intercom', 'network', 'automation', 'data point'] },
+};
+
+const ASSEMBLY_TRADE_MAP: Record<string, string[]> = {
+  bathroom: ['demolition', 'plumbing', 'waterproofing', 'tiling', 'electrical', 'cabinetry'],
+  ensuite: ['demolition', 'plumbing', 'waterproofing', 'tiling', 'electrical', 'cabinetry'],
+  shower: ['plumbing', 'waterproofing', 'tiling', 'electrical'],
+  kitchen: ['demolition', 'plumbing', 'electrical', 'cabinetry', 'tiling', 'painting'],
+  laundry: ['demolition', 'plumbing', 'waterproofing', 'tiling', 'cabinetry'],
+  toilet: ['plumbing', 'waterproofing', 'tiling'],
+  wc: ['plumbing', 'waterproofing', 'tiling'],
+};
+
+export function keywordFallback(scopeText: string): TradeAnalysis[] {
+  const lower = scopeText.toLowerCase();
+  const detected = new Map<string, TradeAnalysis>();
+
+  for (const [categoryId, config] of Object.entries(KEYWORD_TRADE_MAP)) {
+    const matched = config.keywords.filter((keyword) => lower.includes(keyword));
+    if (matched.length === 0) continue;
+    addDetected(detected, categoryId, Math.min((matched.length / config.keywords.length) * 5, 1));
+  }
+
+  for (const trade of TRADE_RATE_DIRECTORY) {
+    const matched = trade.keywords.filter((keyword) => lower.includes(keyword));
+    if (matched.length === 0) continue;
+    addDetected(detected, getTradeCategoryId(trade.trade), Math.min(0.65 + matched.length * 0.12, 1));
+  }
+
+  for (const [assemblyKeyword, categoryIds] of Object.entries(ASSEMBLY_TRADE_MAP)) {
+    if (!lower.includes(assemblyKeyword)) continue;
+    for (const categoryId of categoryIds) addDetected(detected, categoryId, 0.55);
+  }
+
+  return Array.from(detected.values()).sort((a, b) => b.confidence - a.confidence);
+}
+
+function addDetected(map: Map<string, TradeAnalysis>, categoryId: string, confidence: number) {
+  const category = getCategoryById(categoryId);
+  if (!category || category.archetype === 'assembly') return;
+  const existing = map.get(categoryId);
+  if (existing && existing.confidence >= confidence) return;
+  map.set(categoryId, {
+    categoryId,
+    label: category.label,
+    confidence,
+    tradeScope: '',
+    items: [],
+    suggestions: [],
+    subtotal: 0,
+  });
+}
+
+
+===== FILE: src/utils/ai/tradeAnalyserMerge.ts =====
+import type { TradeAnalysis } from './tradeAnalyserTypes';
+
+export function mergeDetectedTrades(primary: TradeAnalysis[], fallback: TradeAnalysis[]): TradeAnalysis[] {
+  const seen = new Set(primary.map((trade) => trade.categoryId));
+  const missing = fallback.filter((trade) => !seen.has(trade.categoryId));
+  return [...primary, ...missing].sort((a, b) => b.confidence - a.confidence);
+}
+
+
+===== FILE: src/utils/ai/tradeAnalyserParser.ts =====
+import { getAllParametricUnits } from '../pricing/parametricUnits';
+import { getAllCategories } from '../pricing/scopeRecogniser';
+import { buildTradeScopeSummary, dedupeTradeAnalyses, normaliseCategoryId } from './tradeNormaliser';
+import type { TradeAnalysis, TradeItem } from './tradeAnalyserTypes';
+
+export function parseGeminiResponse(text: string): TradeAnalysis[] {
+  try {
+    const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const parsed = JSON.parse(cleaned);
+    const units = getAllParametricUnits();
+    const trades: TradeAnalysis[] = [];
+
+    for (const trade of parsed.trades || []) {
+      const categoryId = normaliseCategoryId(trade.categoryId, trade.label);
+      if (!getAllCategories().some((category) => category.id === categoryId)) continue;
+
+      const items = mapTradeItems(trade.preFilledItems || [], units, true);
+      const suggestions = mapTradeItems(trade.suggestedItems || [], units, false);
+
+      trades.push({
+        categoryId,
+        label: getAllCategories().find((category) => category.id === categoryId)?.label || trade.label,
+        confidence: trade.confidence || 0.5,
+        tradeScope: buildTradeScopeSummary(trade.label || categoryId, items, trade.tradeScope || ''),
+        items,
+        suggestions,
+        subtotal: items.reduce((sum, item) => sum + item.rate * item.quantity, 0),
+      });
+    }
+
+    return dedupeTradeAnalyses(trades);
+  } catch {
+    return [];
+  }
+}
+
+function mapTradeItems(items: any[], units: ReturnType<typeof getAllParametricUnits>, isPreFilled: boolean): TradeItem[] {
+  return items
+    .map((item) => {
+      const unit = units.find((candidate) => candidate.id === item.unitId);
+      if (!unit) return null;
+      return {
+        unitId: unit.id,
+        label: unit.label,
+        unit: unit.unit,
+        rate: unit.rate,
+        quantity: item.quantity || 1,
+        isPreFilled,
+        reason: item.reason,
+      };
+    })
+    .filter(Boolean) as TradeItem[];
+}
+
+
+===== FILE: src/utils/ai/tradeAnalyserPrompt.ts =====
+import { getAllParametricUnits } from '../pricing/parametricUnits';
+import { getAllCategories } from '../pricing/scopeRecogniser';
+
+export function buildTradePrompt(scopeText: string, projectAreaM2: number): string {
+  const unitList = getAllParametricUnits().map((u) => `${u.id}|${u.categoryId}|${u.label}|${u.unit}|${u.rate}`).join('\n');
+  const validCategories = getAllCategories()
+    .filter((category) => category.archetype !== 'assembly')
+    .map((category) => `- ${category.id} (${category.label})`)
+    .join('\n');
+
+  return `System Role: You are a Senior Victorian Residential Estimator for a Tier-1 domestic builder. Convert rough builder notes into a professional, sequenced and priced multi-trade scope package for Victoria, Australia.
+
+Location + standards:
+- Victoria, Australia only
+- Follow VBA, HIA, MBA and NCC expectations
+- Prioritise Rawlinsons VIC and HIA/MBA market rates
+- Never skip invisible but necessary trades when clearly implied: demolition, skip hire, waterproofing, screeding/sheeting, grouting, caulking, cleaning, testing, certification, fit-off
+
+Builder notes:
+"""${scopeText}"""
+Project area: ${projectAreaM2}m2
+
+Valid category IDs you may use (must use ONLY these IDs):
+${validCategories}
+
+Available priced unit items (id|categoryId|label|unit|rate):
+${unitList}
+
+Return JSON ONLY, no markdown, no commentary, using this exact schema:
+{ "trades": [{ "categoryId": "electrical", "label": "Electrical", "confidence": 0.95, "tradeScope": "1-3 sentences for this trade only.", "preFilledItems": [{ "unitId": "el-downlight", "quantity": 6, "reason": "6 LED downlights mentioned" }], "suggestedItems": [{ "unitId": "el-gpo-double", "quantity": 2, "reason": "Common fit-off item" }] }] }
+
+Rules:
+- MUST ONLY use category IDs from the valid list above.
+- NEVER return room assemblies such as bathroom, kitchen, laundry or toilet/wc as detected trades.
+- Detect only independent priced trades that will actually be quoted.
+- tradeScope must be specific to that trade only, never the full project narrative.
+- Mention compliance refs where relevant, for example AS3740, AS/NZS 3000, AS3786.
+- preFilledItems are explicitly mentioned or strongly evidenced.
+- suggestedItems are commonly required chain items not clearly mentioned, max 5 per trade.
+- confidence must be between 0.1 and 1.0.
+- Return valid JSON only.`;
+}
+
+
+===== FILE: src/utils/ai/tradeAnalyserTypes.ts =====
+export type TradeItem = {
+  unitId: string;
+  label: string;
+  unit: string;
+  rate: number;
+  quantity: number;
+  isPreFilled: boolean;
+  reason?: string;
+};
+
+export type TradeAnalysis = {
+  categoryId: string;
+  label: string;
+  confidence: number;
+  tradeScope: string;
+  items: TradeItem[];
+  suggestions: TradeItem[];
+  subtotal: number;
+};
+
+export type AnalysisResult = {
+  trades: TradeAnalysis[];
+  model?: string;
+  fallback: boolean;
+};
+
+
+===== FILE: src/utils/ai/tradeNormaliser.ts =====
+/* ─── Segal Build — Trade Normaliser ─── */
+import type { TradeAnalysis } from './tradeAnalyser';
+import { getAllCategories } from '../pricing/scopeRecogniser';
+
+export function normaliseCategoryId(categoryId: string, label?: string): string {
+  const cleaned = categoryId.toLowerCase().replace(/[^a-z-]/g, '');
+  if (getAllCategories().some((c) => c.id === cleaned)) return cleaned;
+  const byLabel = getAllCategories().find((c) => c.label.toLowerCase().includes((label || '').toLowerCase()));
+  if (byLabel) return byLabel.id;
+  return cleaned;
+}
+
+export function buildTradeScopeSummary(tradeLabel: string, items: TradeAnalysis['items'], fallback?: string): string {
+  if (fallback && fallback.trim().length > 10 && !looksLikeProjectWideScope(fallback)) return fallback;
+  if (items.length === 0) return `${tradeLabel} — scope to be detailed in report`;
+  const itemList = items.slice(0, 4).map((i) => i.label).join(', ');
+  return `${tradeLabel}: ${itemList}${items.length > 4 ? ` +${items.length - 4} more items` : ''}`;
+}
+
+function looksLikeProjectWideScope(value: string): boolean {
+  const text = value.toLowerCase();
+  if (text.includes('scope of works:')) return true;
+  if (/\*?\*?\s*\d+\.\s+[a-z]/i.test(value)) return true;
+  const tradeMentions = ['demolition', 'plumbing', 'electrical', 'waterproofing', 'tiling', 'painting', 'cabinetry']
+    .filter((term) => text.includes(term)).length;
+  return tradeMentions >= 3;
+}
+
+export function dedupeTradeAnalyses(trades: TradeAnalysis[]): TradeAnalysis[] {
+  const seen = new Map<string, TradeAnalysis>();
+  for (const trade of trades) {
+    const existing = seen.get(trade.categoryId);
+    if (!existing || trade.confidence > existing.confidence) {
+      seen.set(trade.categoryId, trade);
+    }
+  }
+  return Array.from(seen.values()).sort((a, b) => b.confidence - a.confidence);
+}
+
+
+===== FILE: src/utils/cacheControl.ts =====
+export const APP_BUILD_VERSION = '2026-05-04-cache-reset-1';
+
+export async function clearBrowserRuntimeCaches() {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.localStorage.setItem('segal-build-app-version', APP_BUILD_VERSION);
+  } catch {
+    // Ignore locked-down storage.
+  }
+
+  if ('serviceWorker' in navigator) {
+    try {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((registration) => registration.unregister()));
+    } catch {
+      // No service worker or browser blocked access.
+    }
+  }
+
+  if ('caches' in window) {
+    try {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((key) => caches.delete(key)));
+    } catch {
+      // Cache API may be unavailable in some browser modes.
+    }
+  }
+}
+
+===== FILE: src/utils/categories/categoryTypeOptions.ts =====
+/* Category-specific type selectors for detail forms. */
+
+export const CATEGORY_TYPE_OPTIONS: Record<string, string[]> = {
+  bathroom: ['Full renovation', 'New ensuite', 'New bathroom'],
+  kitchen: ['Full renovation', 'New kitchen', 'Cabinet replacement'],
+  laundry: ['Full renovation', 'New laundry', 'Upgrade'],
+  toilet: ['New WC', 'Renovation', 'Relocation'],
+  flooring: ['Timber', 'Tiles', 'Carpet', 'Vinyl', 'Polished Concrete'],
+  painting: ['Interior', 'Exterior', 'Whole house', 'Feature walls'],
+  electrical: ['Power points', 'Lighting', 'Switchboard', 'Rewire'],
+  plumbing: ['Rough-in', 'Fit-off', 'Hot water', 'Drainage', 'Gas'],
+  waterproofing: ['Bathroom', 'Laundry', 'Balcony', 'Roof'],
+  windowsDoors: ['Window replacement', 'Door replacement', 'Sliding', 'French'],
+  roofing: ['Re-roof', 'Repairs', 'Guttering', 'Skylights'],
+  decking: ['Timber', 'Composite', 'Merbau', 'Blackbutt'],
+  fencing: ['Timber paling', 'Colorbond', 'Picket', 'Pool fence'],
+  concreting: ['Slab', 'Path', 'Driveway', 'Footings'],
+  hvac: ['Split system', 'Ducted', 'Multi-split'],
+};
+
+export function getCategoryTypeOptions(categoryId: string): string[] {
+  return CATEGORY_TYPE_OPTIONS[categoryId] || [];
+}
+
+
+===== FILE: src/utils/categories/core.ts =====
+import { BASIC_TRADE_CATEGORIES } from './groups/basicTrades';
+import { BATHROOM_CATEGORIES } from './groups/bathroom';
+import { KITCHEN_LAUNDRY_CATEGORIES } from './groups/kitchenLaundry';
+import { STRUCTURAL_DECK_CATEGORIES } from './groups/structuralDeck';
+import { CORE_CATEGORIES_BUILDS, CORE_CATEGORIES_PART3 } from './corePart3';
+import { CORE_CATEGORIES_PART2 } from './corePart2';
+import { INDIVIDUAL_TRADE_CATEGORIES } from './groups/individualTrades';
+import type { WorkCategory } from './types';
+
+export const CORE_CATEGORIES: WorkCategory[] = [
+  ...BATHROOM_CATEGORIES,
+  ...KITCHEN_LAUNDRY_CATEGORIES,
+  ...BASIC_TRADE_CATEGORIES,
+  ...INDIVIDUAL_TRADE_CATEGORIES,
+  ...STRUCTURAL_DECK_CATEGORIES,
+  ...CORE_CATEGORIES_PART2,
+  ...CORE_CATEGORIES_PART3,
+  ...CORE_CATEGORIES_BUILDS,
+];
+
+
+===== FILE: src/utils/categories/corePart2.ts =====
+import { EXTERNAL_LANDSCAPE_CATEGORIES } from './groups/externalLandscape';
+import { EXTERNAL_WORK_CATEGORIES } from './groups/externalWorks';
+import { SERVICE_CATEGORIES } from './groups/services';
+import type { WorkCategory } from './types';
+
+export const CORE_CATEGORIES_PART2: WorkCategory[] = [
+  ...SERVICE_CATEGORIES,
+  ...EXTERNAL_WORK_CATEGORIES,
+  ...EXTERNAL_LANDSCAPE_CATEGORIES,
+];
+
+
+===== FILE: src/utils/categories/corePart3.ts =====
+import { BUILD_CATEGORIES } from './groups/builds';
+import { ENVELOPE_SPECIALTY_CATEGORIES } from './groups/envelopeSpecialty';
+import { STRUCTURAL_EXTRA_CATEGORIES } from './groups/structuralExtras';
+import type { WorkCategory } from './types';
+
+export const CORE_CATEGORIES_PART3: WorkCategory[] = [
+  ...ENVELOPE_SPECIALTY_CATEGORIES,
+  ...STRUCTURAL_EXTRA_CATEGORIES,
+];
+
+export const CORE_CATEGORIES_BUILDS: WorkCategory[] = [...BUILD_CATEGORIES];
+
+
+===== FILE: src/utils/categories/extended.ts =====
+import { CORE_CATEGORIES } from './core';
+import { EXTENDED_SPECIALTY_CATEGORIES } from './groups/extendedSpecialty';
+import { EXTENDED_WALL_CATEGORIES } from './groups/extendedWalls';
+import { EXTENDED_WET_JOINERY_CATEGORIES } from './groups/extendedWetJoinery';
+import type { WorkCategory } from './types';
+
+export const EXTENDED_CATEGORIES: WorkCategory[] = [
+  ...EXTENDED_WET_JOINERY_CATEGORIES,
+  ...EXTENDED_WALL_CATEGORIES,
+  ...EXTENDED_SPECIALTY_CATEGORIES,
+];
+
+export const ALL_CATEGORIES: WorkCategory[] = [...CORE_CATEGORIES, ...EXTENDED_CATEGORIES];
+
+export const CATEGORY_MAP: Record<string, WorkCategory> = {};
+ALL_CATEGORIES.forEach((category) => {
+  CATEGORY_MAP[category.id] = category;
+});
+
+export function getCategoryById(id: string): WorkCategory | undefined {
+  return CATEGORY_MAP[id];
+}
+
+export function searchCategories(query: string): WorkCategory[] {
+  const q = query.toLowerCase();
+  return ALL_CATEGORIES.filter(
+    (category) =>
+      category.label.toLowerCase().includes(q) ||
+      category.id.toLowerCase().includes(q) ||
+      category.stages.some(
+        (stage) =>
+          stage.trade.toLowerCase().includes(q) ||
+          stage.name.toLowerCase().includes(q),
+      ),
+  );
+}
+
+
+===== FILE: src/utils/categories/groups/basicTrades.ts =====
+import { cat, catX, type WorkCategory } from '../types';
+
+export const BASIC_TRADE_CATEGORIES: WorkCategory[] = [
+  cat('flooring', '🪵 Flooring', 'flooring', 'wet',
+    [{ id: 'type', label: 'Floor type', type: 'select', options: ['Timber', 'Tiles', 'Carpet', 'Vinyl', 'Polished Concrete'] }, { id: 'area', label: 'Area', type: 'select', options: ['Single room', 'Multiple rooms', 'Whole house'] }],
+    [{ name: 'Subfloor Preparation', trade: 'Carpentry', rate: 55, unit: 'area', duration: 1, description: 'Level and prepare subfloor' }, { name: 'Floor Installation', trade: 'Flooring', rate: 85, unit: 'area', duration: 3, description: 'Supply & install flooring' }, { name: 'Skirting & Trim', trade: 'Carpentry', rate: 25, unit: 'linear', duration: 1, description: 'Install skirting boards' }],
+    [{ description: 'Flooring Material', allowance: 90, unit: '$/m²' }],
+    ['Subfloor preparation', 'Quality flooring installation', 'Skirting and trim'],
+    ['Furniture moving', 'Subfloor levelling compound', 'Door trimming'],
+    [{ categoryId: 'painting', type: 'suggested' }]),
+  cat('painting', '🎨 Painting', 'painting', 'trades',
+    [{ id: 'type', label: 'Type', type: 'select', options: ['Interior', 'Exterior', 'Both'] }, { id: 'prep', label: 'Preparation', type: 'select', options: ['Minimal prep', 'Standard prep', 'Full prep & patching'] }],
+    [{ name: 'Preparation', trade: 'Painting', rate: 12, unit: 'area', duration: 1, description: 'Sand, fill, prime' }, { name: 'First Coat', trade: 'Painting', rate: 18, unit: 'area', duration: 1, description: 'Apply first coat' }, { name: 'Second Coat', trade: 'Painting', rate: 18, unit: 'area', duration: 1, description: 'Apply second coat' }],
+    [{ description: 'Paint Supply', allowance: 35, unit: '$/L' }],
+    ['All preparation', 'Two-coat finish', 'Clean up and disposal'],
+    ['Colour consulting', 'Wallpaper removal', 'Extensive patching', 'Lead paint management'], []),
+  cat('demolition', '🏗️ Demolition', 'demolition', 'trades',
+    [{ id: 'type', label: 'Type', type: 'select', options: ['Internal strip', 'Partial demolition', 'Full demolition'] }],
+    [{ name: 'Demolition', trade: 'Demo', rate: 150, unit: 'area', duration: 2, description: 'Demolish and remove' }, { name: 'Skip Bin', trade: 'Demo', rate: 850, unit: 'item', duration: 0, description: 'Waste removal' }],
+    [], ['Demolition and debris removal', 'Skip bin hire'], ['Asbestos removal', 'Structural engineering', 'Council permits'], [{ categoryId: 'structural', type: 'suggested' }]),
+  catX('electrical', '⚡ Electrical', 'electrical', 'trades', 'trade',
+    [{ id: 'scope', label: 'Scope', type: 'select', options: ['New fit-out', 'Rewire', 'Upgrade switchboard', 'Add circuits'] }],
+    [{ name: 'Electrical Rough-in', trade: 'Electrical', rate: 85, unit: 'area', duration: 2, description: 'Rough-in cabling' }, { name: 'Fit-off', trade: 'Electrical', rate: 800, unit: 'item', duration: 1, description: 'Install fittings and test' }],
+    [], ['All cabling and installation', 'Compliance certificate (CES)', 'AS/NZS 3000 compliance'], ['Light fitting supply', 'Data cabling', 'Solar/battery'], [{ categoryId: 'smartHome', type: 'suggested' }],
+    { usesParametric: true, supportsPcItems: false }),
+];
+
+
+===== FILE: src/utils/categories/groups/bathroom.ts =====
+import { catX, type WorkCategory } from '../types';
+
+export const BATHROOM_CATEGORIES: WorkCategory[] = [
+  catX('bathroom', '🚿 Bathroom / Wet Areas', 'bathroom', 'wet', 'assembly',
+    [{ id: 'size', label: 'Approximate size', type: 'select', options: ['Small (3x2m)', 'Medium (4x3m)', 'Large (5x3m)', 'Custom'] },
+     { id: 'type', label: 'Type', type: 'select', options: ['Full renovation', 'New ensuite', 'New bathroom'] },
+     { id: 'tileExtent', label: 'Wall tile extent', type: 'select', options: ['Shower only + skirting tile', '1200mm high walls', '2100mm high walls', 'Floor-to-ceiling walls'] },
+     { id: 'tileFinish', label: 'Tile finish level', type: 'select', options: ['Standard ceramic', 'Rectified porcelain', 'Feature wall included', 'Large-format premium'] },
+     { id: 'vanityType', label: 'Vanity configuration', type: 'select', options: ['Standard 600mm vanity', '900mm vanity', '1200mm double vanity', 'Custom joinery vanity'] },
+     { id: 'showerScreen', label: 'Shower screen', type: 'select', options: ['Semi-frameless', 'Frameless', 'Fully framed', 'Reuse existing', 'No shower screen'] },
+     { id: 'fixtures', label: 'Fixture quality', type: 'select', options: ['Standard', 'Mid-range', 'Premium'] }],
+    [{ name: 'Demolition & Removal', trade: 'Demo', rate: 2800, unit: 'item', duration: 2, description: 'Strip bathroom, remove debris' },
+     { name: 'Plumbing Rough-in', trade: 'Plumbing', rate: 3200, unit: 'allow', duration: 2, description: 'Rough-in new pipework' },
+     { name: 'Waterproofing', trade: 'Waterproofing', rate: 185, unit: 'area', duration: 1, description: 'AS3740 compliant membrane' },
+     { name: 'Wall Tiling', trade: 'Tiling', rate: 145, unit: 'area', duration: 3, description: 'Supply & install wall tiles' },
+     { name: 'Floor Tiling', trade: 'Tiling', rate: 155, unit: 'area', duration: 2, description: 'Supply & install floor tiles' },
+     { name: 'Electrical Fit-off', trade: 'Electrical', rate: 1200, unit: 'allow', duration: 1, description: 'Lights, exhaust, heated towel rail' },
+     { name: 'Vanity & Mirror Install', trade: 'Carpentry', rate: 800, unit: 'item', duration: 1, description: 'Install vanity, mirror, accessories' },
+     { name: 'Plumbing Fit-off', trade: 'Plumbing', rate: 2400, unit: 'allow', duration: 1, description: 'Tapware, shower, toilet install' },
+     { name: 'Silicone & Finish', trade: 'Carpentry', rate: 350, unit: 'item', duration: 0.5, description: 'Seal all joints, final clean' }],
+    [{ description: 'Tiles', allowance: 80, unit: '$/m²' }, { description: 'Tapware Set', allowance: 800, unit: 'set' }, { description: 'Vanity Unit', allowance: 1200, unit: 'item' }, { description: 'Toilet Suite', allowance: 600, unit: 'item' }, { description: 'Shower Screen', allowance: 900, unit: 'item' }, { description: 'Bath (if applicable)', allowance: 1100, unit: 'item' }],
+    ['AS3740 waterproofing compliance', 'All labour and materials', 'Waste removal and disposal', 'Standard fixture installation', 'Silicone sealing to all joints'],
+    ['Asbestos removal', 'Structural alterations', 'Council/permit fees', 'Engineer certification', 'Floor levelling if required'],
+    [{ categoryId: 'cabinetry', type: 'suggested' }, { categoryId: 'flooring', type: 'suggested' }, { categoryId: 'painting', type: 'suggested' }],
+    { dimensionMode: 'area', bundles: ['waterproofing', 'plumbing', 'tiling'], supportsPcItems: true, contingency: 10, workType: 'renovation' }),
+];
+
+
+===== FILE: src/utils/categories/groups/builds.ts =====
+import { cat, type WorkCategory } from '../types';
+
+export const BUILD_CATEGORIES: WorkCategory[] = [
+  cat('secondStorey', '🏢 Upper Storey Extension', 'secondStorey', 'structural',
+    [{ id: 'size', label: 'Size', type: 'select', options: ['Single room', 'Full upper storey extension'] }],
+    [{ name: 'Engineering & Permits', trade: 'Structural', rate: 8000, unit: 'item', duration: 10, description: 'Engineer and council' }, { name: 'Strengthening', trade: 'Structural', rate: 25000, unit: 'item', duration: 4, description: 'Strengthen existing structure' }, { name: 'Upper Storey Construction', trade: 'Carpentry', rate: 85000, unit: 'item', duration: 8, description: 'Full upper storey extension build' }],
+    [{ description: 'Staircase', allowance: 8000, unit: 'item' }], ['Engineering and permits', 'Structural strengthening', 'Full construction'], ['Temporary accommodation', 'Asbestos removal', 'Landscaping'], [{ categoryId: 'structural', type: 'auto' }, { categoryId: 'roofing', type: 'auto' }], 15, 'new_build'),
+  cat('multiUnit', '🏘️ Multi-Unit', 'multiUnit', 'structural',
+    [{ id: 'type', label: 'Type', type: 'select', options: ['Dual occupancy', 'Townhouses', 'Triplex'] }],
+    [{ name: 'Site Works & Foundation', trade: 'Concreting', rate: 80000, unit: 'item', duration: 4, description: 'Site cut, footings, slab' }, { name: 'Construction', trade: 'Carpentry', rate: 250000, unit: 'item', duration: 12, description: 'Full multi-unit build' }],
+    [], ['Multi-unit construction', 'All trades'], ['DA and CDC approvals', 'Architect fees', 'Landscaping'], [{ categoryId: 'newHomeBuild', type: 'suggested' }], 10, 'new_build'),
+  cat('grannyFlat', '🏠 Granny Flat / DPU', 'grannyFlat', 'structural',
+    [{ id: 'size', label: 'Size', type: 'select', options: ['1 bed (40-50m²)', '2 bed (60-70m²)'] }],
+    [{ name: 'Site Prep & Slab', trade: 'Concreting', rate: 22000, unit: 'item', duration: 3, description: 'Site prep and slab' }, { name: 'Frame to Lock-up', trade: 'Carpentry', rate: 45000, unit: 'item', duration: 4, description: 'Frame, roof, lock-up' }, { name: 'Fit-out', trade: 'Carpentry', rate: 35000, unit: 'item', duration: 4, description: 'All finishes and trades' }],
+    [{ description: 'Kitchen', allowance: 8000, unit: 'allowance' }, { description: 'Bathroom', allowance: 10000, unit: 'allowance' }], ['Complete granny flat construction', 'Kitchen and bathroom included'], ['DA/CDC approval', 'Utility connections', 'Landscaping'], [{ categoryId: 'newHomeBuild', type: 'suggested' }, { categoryId: 'landscaping', type: 'suggested' }], 8, 'new_build'),
+];
+
+
+===== FILE: src/utils/categories/groups/envelopeSpecialty.ts =====
+import { cat, type WorkCategory } from '../types';
+
+export const ENVELOPE_SPECIALTY_CATEGORIES: WorkCategory[] = [
+  cat('rendering', '🎨 Rendering', 'rendering', 'external',
+    [{ id: 'type', label: 'Type', type: 'select', options: ['Cement render', 'Texture coat', 'Acrylic'] }],
+    [{ name: 'Surface Prep', trade: 'Carpentry', rate: 25, unit: 'area', duration: 1, description: 'Clean and prepare' }, { name: 'Render Application', trade: 'Carpentry', rate: 85, unit: 'area', duration: 2, description: 'Supply and apply render' }],
+    [], ['Surface preparation', 'Quality render finish'], ['Painting (separate)', 'Structural repairs'], [{ categoryId: 'painting', type: 'suggested' }, { categoryId: 'cladding', type: 'suggested' }]),
+  cat('cladding', '🧱 Cladding', 'cladding', 'external',
+    [{ id: 'type', label: 'Type', type: 'select', options: ['Weatherboard', 'Fibre cement', 'Metal'] }],
+    [{ name: 'Wall Prep', trade: 'Carpentry', rate: 35, unit: 'area', duration: 1, description: 'Prepare wall surface' }, { name: 'Cladding Install', trade: 'Carpentry', rate: 120, unit: 'area', duration: 3, description: 'Supply and fix cladding' }],
+    [], ['Sarking and wrap', 'Cladding supply and install'], ['Insulation (separate)', 'Painting (if required)'], [{ categoryId: 'insulation', type: 'suggested' }, { categoryId: 'painting', type: 'suggested' }]),
+  cat('insulation', '🛡️ Insulation', 'insulation', 'specialty',
+    [{ id: 'type', label: 'Type', type: 'select', options: ['Wall', 'Ceiling', 'Underfloor', 'Acoustic'] }],
+    [{ name: 'Installation', trade: 'Carpentry', rate: 35, unit: 'area', duration: 1, description: 'Install bulk/batt insulation' }],
+    [], ['Supply and installation', 'Code-compliant R-values'], ['Making good linings'], [{ categoryId: 'ceilings', type: 'suggested' }]),
+];
+
+
+===== FILE: src/utils/categories/groups/extendedSpecialty.ts =====
+import { cat, catX, type WorkCategory } from '../types';
+
+export const EXTENDED_SPECIALTY_CATEGORIES: WorkCategory[] = [
+  catX('fireSafety', '🔥 Fire & Safety', 'fireSafety', 'specialty', 'compliance',
+    [{ id: 'itemType', label: 'Compliance item', type: 'select', options: ['Smoke alarm — 240V hardwired interconnected', 'Smoke alarm — 10yr lithium interconnected', 'Fire door — 60/30/30 rated', 'Fire door — 90/60/30 rated', 'BAL assessment & report'] }, { id: 'count', label: 'How many?', type: 'number' }, { id: 'interconnect', label: 'Interconnect to existing system?', type: 'select', options: ['Yes — extend existing', 'No — standalone'], dependsOn: { questionId: 'itemType', values: ['Smoke alarm — 240V hardwired interconnected', 'Smoke alarm — 10yr lithium interconnected'] } }],
+    [{ name: 'Supply & install', trade: 'Electrical', rate: 240, unit: 'item', duration: 0.5, description: 'Per AS3786 — supply, install, test' }],
+    [], ['AS3786 / AS1530 compliance certificate', 'Supply, install, test, and tag', 'Battery backup where applicable'], ['Fire sprinkler systems', 'Detection panels / monitored alarms', 'Patching & painting after install'], [], { dimensionMode: 'none', supportsPcItems: false, contingency: 5, workType: 'maintenance' }),
+  cat('paving', '🧱 Paving & Driveways', 'paving', 'external',
+    [{ id: 'type', label: 'Type', type: 'select', options: ['Concrete', 'Pavers', 'Exposed aggregate'] }],
+    [{ name: 'Base Preparation', trade: 'Concreting', rate: 45, unit: 'area', duration: 1, description: 'Excavate, base, compact' }, { name: 'Paving/Pour', trade: 'Concreting', rate: 95, unit: 'area', duration: 2, description: 'Lay pavers or pour concrete' }],
+    [], ['Base preparation', 'Paving or concrete pour'], ['Drainage', 'Retaining walls'], [{ categoryId: 'concreting', type: 'suggested' }, { categoryId: 'landscaping', type: 'suggested' }]),
+];
+
+
+===== FILE: src/utils/categories/groups/extendedWalls.ts =====
+import { cat, catX, type WorkCategory } from '../types';
+
+export const EXTENDED_WALL_CATEGORIES: WorkCategory[] = [
+  cat('ceilings', '🏠 Ceilings & Cornices', 'ceilings', 'structural',
+    [{ id: 'type', label: 'Type', type: 'select', options: ['Plasterboard repair', 'Bulkhead', 'Raking ceiling', 'New ceiling'] }],
+    [{ name: 'Demolition (if req.)', trade: 'Demo', rate: 45, unit: 'area', duration: 1, description: 'Remove existing ceiling' }, { name: 'Frame & Sheet', trade: 'Carpentry', rate: 85, unit: 'area', duration: 2, description: 'Ceiling frame and plasterboard' }, { name: 'Cornice & Finish', trade: 'Carpentry', rate: 35, unit: 'linear', duration: 1, description: 'Cornice, set, and finish' }],
+    [], ['All materials and labour', 'Cornice and finishing'], ['Insulation (separate)', 'Asbestos removal'], [{ categoryId: 'painting', type: 'suggested' }, { categoryId: 'insulation', type: 'suggested' }]),
+  catX('internalWalls', '🧱 Internal Walls', 'internalWalls', 'structural', 'element',
+    [{ id: 'wallType', label: 'Wall construction', type: 'select', options: ['90mm timber stud + plasterboard', '70mm timber stud + plasterboard', '64mm steel stud + plasterboard', '92mm steel stud + plasterboard', 'Single brick (110mm)', 'Double brick cavity (270mm)', 'Hebel block (75mm)'] }, { id: 'finish', label: 'Plasterboard finish', type: 'select', options: ['Standard 10mm', 'Wet-area 10mm (CSR Wet)', 'Acoustic 13mm', 'Fire-rated 13mm'], dependsOn: { questionId: 'wallType', values: ['90mm timber stud + plasterboard', '70mm timber stud + plasterboard', '64mm steel stud + plasterboard', '92mm steel stud + plasterboard'] } }, { id: 'insulation', label: 'Acoustic / thermal insulation', type: 'select', options: ['None', 'R2.0 acoustic batt', 'R2.5 thermal batt', 'R2.7 acoustic + thermal'] }],
+    [{ name: 'Frame', trade: 'Carpentry', rate: 85, unit: 'area', duration: 1, description: 'Construct wall frame to specified type' }, { name: 'Insulation install', trade: 'Carpentry', rate: 18, unit: 'area', duration: 0.5, description: 'Friction-fit batt insulation' }, { name: 'Sheet & set', trade: 'Carpentry', rate: 65, unit: 'area', duration: 1, description: 'Plasterboard, set 3-coat finish' }],
+    [], ['Frame to specified construction', 'Plasterboard to nominated finish', '3-coat set ready for paint'], ['Painting (separate category)', 'Skirting / architrave (separate category)', 'Electrical chasing & make-good', 'Structural lintels / load-bearing modifications'], [{ categoryId: 'painting', type: 'suggested' }, { categoryId: 'electrical', type: 'suggested' }, { categoryId: 'insulation', type: 'suggested' }], { dimensionMode: 'wall', supportsPcItems: false, contingency: 10, workType: 'renovation' }),
+];
+
+
+===== FILE: src/utils/categories/groups/extendedWetJoinery.ts =====
+import { cat, type WorkCategory } from '../types';
+
+export const EXTENDED_WET_JOINERY_CATEGORIES: WorkCategory[] = [
+  cat('toilet', '🚽 Toilet / WC', 'toilet', 'wet',
+    [{ id: 'type', label: 'Type', type: 'select', options: ['New WC', 'Renovation', 'Relocation'] }, { id: 'tileExtent', label: 'Wall tile extent', type: 'select', options: ['Skirting tile only', '1200mm high walls', '2100mm high walls', 'Floor-to-ceiling walls'] }, { id: 'suiteType', label: 'Toilet suite type', type: 'select', options: ['Back-to-wall', 'Wall-hung', 'Standard close-coupled', 'In-wall cistern'] }],
+    [{ name: 'Plumbing Rough-in', trade: 'Plumbing', rate: 1200, unit: 'allow', duration: 1, description: 'New drainage and water supply' }, { name: 'Wall & Floor Prep', trade: 'Carpentry', rate: 800, unit: 'item', duration: 1, description: 'Stud frame, plasterboard' }, { name: 'Tiling', trade: 'Tiling', rate: 155, unit: 'area', duration: 1, description: 'Wall and floor tiles' }, { name: 'Fit-off', trade: 'Plumbing', rate: 600, unit: 'allow', duration: 0.5, description: 'Install toilet suite, cistern' }],
+    [{ description: 'Toilet Suite', allowance: 500, unit: 'each' }, { description: 'Hand basin', allowance: 200, unit: 'each' }], ['Plumbing rough-in and fit-off', 'Tiling and waterproofing'], ['Structural alterations', 'Mechanical ventilation'], [{ categoryId: 'plumbing', type: 'auto' }, { categoryId: 'waterproofing', type: 'auto' }]),
+  cat('cabinetry', '🪟 Cabinetry & Joinery', 'cabinetry', 'wet',
+    [{ id: 'type', label: 'Type', type: 'select', options: ['Built-in robes', 'Shelving', 'Custom joinery', 'Entertainment unit'] }],
+    [{ name: 'Design & Measure', trade: 'Carpentry', rate: 500, unit: 'item', duration: 1, description: 'Measure and design' }, { name: 'Manufacture', trade: 'Carpentry', rate: 350, unit: 'linear', duration: 5, description: 'Custom manufacture' }, { name: 'Installation', trade: 'Carpentry', rate: 180, unit: 'linear', duration: 2, description: 'Install and fit out' }],
+    [{ description: 'Hardware', allowance: 200, unit: 'allowance' }], ['Custom design and manufacture', 'Installation and adjustment'], ['Electrical work within cabinetry', 'Appliance supply'], []),
+];
+
+
+===== FILE: src/utils/categories/groups/externalLandscape.ts =====
+import { cat, type WorkCategory } from '../types';
+
+export const EXTERNAL_LANDSCAPE_CATEGORIES: WorkCategory[] = [
+  cat('landscaping', '🌿 Landscaping', 'landscaping', 'external',
+    [{ id: 'type', label: 'Type', type: 'select', options: ['Garden beds', 'Turf', 'Full landscape', 'Irrigation'] }],
+    [{ name: 'Site Prep', trade: 'Landscaping', rate: 25, unit: 'area', duration: 1, description: 'Clear and prepare' }, { name: 'Landscaping', trade: 'Landscaping', rate: 85, unit: 'area', duration: 3, description: 'Supply and install' }],
+    [], ['All materials and labour', 'Basic planting'], ['Retaining walls', 'Irrigation systems', 'Lighting'], [{ categoryId: 'concreting', type: 'suggested' }]),
+  cat('pools', '🏊 Pool & Spa', 'pools', 'external',
+    [{ id: 'type', label: 'Type', type: 'select', options: ['Concrete pool', 'Fiberglass', 'Renovation'] }],
+    [{ name: 'Excavation & Steel', trade: 'Concreting', rate: 25000, unit: 'item', duration: 3, description: 'Excavate and steel fix' }, { name: 'Shell Construction', trade: 'Concreting', rate: 30000, unit: 'item', duration: 3, description: 'Shotcrete/gunite shell' }, { name: 'Tile & Coping', trade: 'Tiling', rate: 8000, unit: 'item', duration: 2, description: 'Waterline tile and coping' }, { name: 'Equipment & Finish', trade: 'Plumbing', rate: 12000, unit: 'item', duration: 2, description: 'Pump, filter, interior finish' }],
+    [{ description: 'Pool Equipment', allowance: 5000, unit: 'allowance' }], ['Pool shell construction', 'Equipment installation', 'Compliance fencing (separate)'], ['Pool fencing', 'Landscaping', 'Heating'], [{ categoryId: 'fencing', type: 'auto' }, { categoryId: 'electrical', type: 'auto' }, { categoryId: 'landscaping', type: 'suggested' }]),
+  cat('windowsDoors', '🪟 Windows & Doors', 'windowsDoors', 'external',
+    [{ id: 'type', label: 'Type', type: 'select', options: ['Window replacement', 'New window', 'Door replacement', 'New door', 'Stacker/sliding'] }],
+    [{ name: 'Remove Existing', trade: 'Carpentry', rate: 250, unit: 'item', duration: 0.5, description: 'Remove old window/door' }, { name: 'Install New', trade: 'Carpentry', rate: 650, unit: 'item', duration: 1, description: 'Install new window/door' }],
+    [{ description: 'Window/Door Unit', allowance: 1200, unit: 'item' }], ['Supply and install', 'Making good internal/external'], ['Structural alterations for new openings', 'Council permits', 'Flyscreens/security'], [{ categoryId: 'painting', type: 'suggested' }]),
+];
+
+
+===== FILE: src/utils/categories/groups/externalWorks.ts =====
+import { cat, type WorkCategory } from '../types';
+
+export const EXTERNAL_WORK_CATEGORIES: WorkCategory[] = [
+  cat('roofing', '🏠 Roofing — Re-Roof', 'roofing', 'external',
+    [{ id: 'type', label: 'Type', type: 'select', options: ['Colorbond', 'Tiles', 'Zinc'] }],
+    [{ name: 'Remove Old Roof', trade: 'Roofing', rate: 35, unit: 'area', duration: 2, description: 'Remove existing roofing' }, { name: 'Install New Roof', trade: 'Roofing', rate: 120, unit: 'area', duration: 3, description: 'Supply and install new' }],
+    [{ description: 'Roofing Material', allowance: 65, unit: '$/m²' }], ['Removal and disposal', 'New roofing installation', 'Flashings and ridges'], ['Structural repairs', 'Guttering', 'Insulation'], [{ categoryId: 'guttersFascia', type: 'auto' }, { categoryId: 'insulation', type: 'suggested' }]),
+  cat('fencing', '🏗️ Fencing & Gates', 'fencing', 'external',
+    [{ id: 'type', label: 'Type', type: 'select', options: ['Timber paling', 'Colorbond', 'Aluminium', 'Pool fence'] }],
+    [{ name: 'Post Holes & Posts', trade: 'Carpentry', rate: 45, unit: 'linear', duration: 1, description: 'Dig and set posts' }, { name: 'Fence Construction', trade: 'Carpentry', rate: 120, unit: 'linear', duration: 2, description: 'Build fence' }],
+    [], ['All materials and labour', 'Post holes and concrete'], ['Removal of old fence', 'Council permits', 'Pool compliance certification'], []),
+  cat('concreting', '🧱 Concreting', 'concreting', 'external',
+    [{ id: 'type', label: 'Type', type: 'select', options: ['Slab', 'Footings', 'Paths', 'Driveway'] }],
+    [{ name: 'Excavation & Prep', trade: 'Concreting', rate: 45, unit: 'area', duration: 1, description: 'Excavate and prepare base' }, { name: 'Form & Pour', trade: 'Concreting', rate: 110, unit: 'area', duration: 2, description: 'Formwork and concrete pour' }],
+    [], ['Excavation and prep', 'Concrete supply and pour', 'Basic finish'], ['Reinforcement', 'Exposed aggregate finish', 'Pump hire'], []),
+  cat('pergola', '🏠 Pergola & Patio', 'pergola', 'external',
+    [{ id: 'type', label: 'Type', type: 'select', options: ['Timber pergola', 'Steel patio', 'Insulated roof'] }],
+    [{ name: 'Posts & Frame', trade: 'Carpentry', rate: 350, unit: 'area', duration: 2, description: 'Construct frame' }, { name: 'Roofing', trade: 'Roofing', rate: 120, unit: 'area', duration: 2, description: 'Install roofing' }],
+    [], ['Complete structure', 'All materials'], ['Council permits', 'Electrical', 'Flooring/paving'], [{ categoryId: 'electrical', type: 'suggested' }, { categoryId: 'paving', type: 'suggested' }]),
+];
+
+
+===== FILE: src/utils/categories/groups/generatedTradePeople.ts =====
+import { TRADE_RATE_DIRECTORY } from '../../trades/tradeRateDirectory';
+import { getTradeCategoryId } from '../../trades/tradeIds';
+import { catX, type WorkCategory } from '../types';
+
+export const GENERATED_TRADE_PEOPLE_CATEGORIES: WorkCategory[] = TRADE_RATE_DIRECTORY
+  .map((item) => catX(
+    getTradeCategoryId(item.trade),
+    item.trade,
+    'trade',
+    'trades',
+    'trade',
+    [
+      { id: 'scopeType', label: 'Scope type', type: 'select', options: ['Labour only', 'Supply and install', 'Repair', 'New work'] },
+      { id: 'complexity', label: 'Complexity', type: 'select', options: ['Standard', 'Moderate', 'Complex / premium'] },
+      { id: 'access', label: 'Access', type: 'select', options: ['Easy', 'Moderate', 'Difficult'] },
+    ],
+    [{ name: item.trade, trade: item.trade, rate: item.rate, unit: item.unit, duration: item.duration, description: item.description }],
+    [],
+    ['Labour and standard materials required for the nominated trade scope'],
+    ['Permits, engineering, specialist reports and latent conditions unless specifically listed'],
+    [],
+    { dimensionMode: item.unit === 'area' ? 'area' : item.unit === 'linear' ? 'linear' : 'none', usesParametric: false, supportsPcItems: false },
+  ));
+
+
+===== FILE: src/utils/categories/groups/individualTrades.ts =====
+import { catX, type WorkCategory } from '../types';
+import { GENERATED_TRADE_PEOPLE_CATEGORIES } from './generatedTradePeople';
+
+export const INDIVIDUAL_TRADE_CATEGORIES: WorkCategory[] = [
+  catX('tiling', '🔲 Tiling', 'tiling', 'trades', 'trade',
+    [{ id: 'type', label: 'Tiling scope', type: 'select', options: ['Floor tiling', 'Wall tiling', 'Splashback', 'Wet area tiling', 'Outdoor tiling'] }, { id: 'finish', label: 'Finish level', type: 'select', options: ['Standard ceramic', 'Porcelain', 'Large-format premium', 'Feature tile'] }],
+    [{ name: 'Substrate Prep', trade: 'Tiling', rate: 35, unit: 'area', duration: 1, description: 'Prepare substrate for tiling' }, { name: 'Tile Installation', trade: 'Tiling', rate: 145, unit: 'area', duration: 2, description: 'Lay tiles, grout and clean' }],
+    [{ description: 'Tiles', allowance: 80, unit: '$/m²' }], ['Tile installation', 'Grouting and clean down'], ['Waterproofing unless listed separately', 'Floor levelling compound'], [{ categoryId: 'waterproofing', type: 'suggested' }],
+    { dimensionMode: 'area', usesParametric: true, supportsPcItems: true }),
+  catX('carpentry', '🪚 Carpentry', 'carpentry', 'trades', 'trade',
+    [{ id: 'type', label: 'Carpentry type', type: 'select', options: ['Fit-off', 'Framing', 'Skirting/architraves', 'Door install', 'General carpentry'] }],
+    [{ name: 'Carpentry Labour', trade: 'Carpentry', rate: 950, unit: 'allow', duration: 1, description: 'General carpentry works' }],
+    [], ['Labour and standard fixings'], ['Specialty hardware', 'Structural engineering'], [{ categoryId: 'painting', type: 'suggested' }],
+    { dimensionMode: 'none', usesParametric: false, supportsPcItems: false }),
+  catX('plastering', '🧱 Plastering', 'plastering', 'trades', 'trade',
+    [{ id: 'type', label: 'Plastering type', type: 'select', options: ['Patch and make good', 'New plasterboard', 'Ceiling plaster', 'Wet area sheeting'] }],
+    [{ name: 'Sheet and Set', trade: 'Plastering', rate: 85, unit: 'area', duration: 2, description: 'Supply, sheet and set plasterboard' }],
+    [], ['Plasterboard installation', 'Setting and sanding ready for paint'], ['Painting', 'Insulation'], [{ categoryId: 'painting', type: 'suggested' }],
+    { dimensionMode: 'area', usesParametric: false, supportsPcItems: false }),
+  catX('brickwork', '🧱 Brickwork', 'brickwork', 'trades', 'trade',
+    [{ id: 'type', label: 'Brickwork type', type: 'select', options: ['New wall', 'Opening infill', 'Repair/repointing', 'Feature brickwork'] }],
+    [{ name: 'Brickwork', trade: 'Bricklaying', rate: 220, unit: 'area', duration: 2, description: 'Supply and lay brickwork' }],
+    [{ description: 'Bricks', allowance: 1.8, unit: 'each' }], ['Bricklaying labour and mortar'], ['Engineering, lintels, painting/rendering'], [{ categoryId: 'rendering', type: 'suggested' }],
+    { dimensionMode: 'wall', usesParametric: false, supportsPcItems: true }),
+  ...GENERATED_TRADE_PEOPLE_CATEGORIES,
+];
+
+
+===== FILE: src/utils/categories/groups/kitchenLaundry.ts =====
+import { cat, type WorkCategory } from '../types';
+
+export const KITCHEN_LAUNDRY_CATEGORIES: WorkCategory[] = [
+  cat('kitchen', '🍳 Kitchen', 'kitchen', 'wet',
+    [{ id: 'size', label: 'Kitchen size', type: 'select', options: ['Small (3x2m)', 'Medium (4x3m)', 'Large (5x4m)', 'Custom'] },
+     { id: 'type', label: 'Scope', type: 'select', options: ['Full renovation', 'New kitchen', 'Cabinet replacement'] },
+     { id: 'benchtop', label: 'Benchtop', type: 'select', options: ['Laminate', 'Stone (Caesarstone)', 'Porcelain'] }],
+    [{ name: 'Demolition & Remove', trade: 'Demo', rate: 2200, unit: 'item', duration: 2, description: 'Strip existing kitchen' },
+     { name: 'Plumbing/Electrical Rough-in', trade: 'Plumbing', rate: 2800, unit: 'allow', duration: 2, description: 'Relocate services' },
+     { name: 'Plastering & Making Good', trade: 'Plastering', rate: 165, unit: 'area', duration: 2, description: 'Patch walls and ceilings' },
+     { name: 'Cabinet Installation', trade: 'Carpentry', rate: 6500, unit: 'allow', duration: 3, description: 'Supply & install cabinetry' },
+     { name: 'Benchtop Template & Install', trade: 'Carpentry', rate: 3500, unit: 'allow', duration: 2, description: 'Stone benchtop templating & install' },
+     { name: 'Splashback Tiling', trade: 'Tiling', rate: 145, unit: 'area', duration: 1, description: 'Install splashback tiles' },
+     { name: 'Plumbing/Electrical Fit-off', trade: 'Electrical', rate: 2200, unit: 'allow', duration: 1, description: 'Connect appliances, lighting' },
+     { name: 'Painting', trade: 'Painting', rate: 65, unit: 'area', duration: 2, description: 'Paint walls and ceilings' }],
+    [{ description: 'Kitchen Cabinets', allowance: 8000, unit: 'allowance' }, { description: 'Stone Benchtop', allowance: 4000, unit: 'allowance' }, { description: 'Sink & Tapware', allowance: 900, unit: 'set' }, { description: 'Handles & Hardware', allowance: 300, unit: 'allowance' }],
+    ['Delivery & installation of cabinetry', 'Standard appliance connections', 'Splashback tiling', 'Making good walls and painting'],
+    ['Appliance supply (unless PC)', 'Gas fitting if required', 'Structural alterations', 'Flooring replacement', 'Council/permit fees'],
+    [{ categoryId: 'plumbing', type: 'auto' }, { categoryId: 'electrical', type: 'auto' }, { categoryId: 'painting', type: 'suggested' }, { categoryId: 'flooring', type: 'suggested' }]),
+  cat('laundry', '🧺 Laundry', 'laundry', 'wet',
+    [{ id: 'size', label: 'Laundry size', type: 'select', options: ['Small (2x2m)', 'Medium (3x2m)', 'Large (3x3m)'] },
+     { id: 'type', label: 'Scope', type: 'select', options: ['Full renovation', 'New laundry', 'Upgrade'] }],
+    [{ name: 'Demolition', trade: 'Demo', rate: 1200, unit: 'item', duration: 1, description: 'Remove existing laundry' },
+     { name: 'Plumbing Rough-in', trade: 'Plumbing', rate: 1800, unit: 'allow', duration: 1, description: 'Rough-in new services' },
+     { name: 'Waterproofing', trade: 'Waterproofing', rate: 185, unit: 'area', duration: 1, description: 'Membrane to floor' },
+     { name: 'Floor & Wall Tiling', trade: 'Tiling', rate: 155, unit: 'area', duration: 2, description: 'Supply & install tiles' },
+     { name: 'Cabinetry Install', trade: 'Carpentry', rate: 2500, unit: 'allow', duration: 1, description: 'Install laundry cabinets' },
+     { name: 'Plumbing Fit-off', trade: 'Plumbing', rate: 1200, unit: 'allow', duration: 0.5, description: 'Connect tub, taps, trough' }],
+    [{ description: 'Tub & Tapware', allowance: 500, unit: 'set' }, { description: 'Cabinetry', allowance: 2000, unit: 'allowance' }, { description: 'Tiles', allowance: 70, unit: '$/m²' }],
+    ['AS3740 waterproofing', 'Cabinetry supply & install', 'Plumbing connections'],
+    ['Appliance supply', 'Structural work', 'Floor levelling'],
+    [{ categoryId: 'waterproofing', type: 'auto' }, { categoryId: 'plumbing', type: 'auto' }, { categoryId: 'cabinetry', type: 'suggested' }]),
+];
+
+
+===== FILE: src/utils/categories/groups/services.ts =====
+import { cat, type WorkCategory } from '../types';
+
+export const SERVICE_CATEGORIES: WorkCategory[] = [
+  cat('plumbing', '🔧 Plumbing & Drainage', 'plumbing', 'trades',
+    [{ id: 'type', label: 'Type', type: 'select', options: ['Rough-in', 'Hot water', 'Drainage', 'Gas fitting'] }],
+    [{ name: 'Plumbing Rough-in', trade: 'Plumbing', rate: 1800, unit: 'allow', duration: 2, description: 'Rough-in pipework' }, { name: 'Fit-off', trade: 'Plumbing', rate: 800, unit: 'allow', duration: 1, description: 'Connect fixtures' }],
+    [{ description: 'Hot Water System', allowance: 2500, unit: 'item' }], ['All labour and materials', 'Compliance certification'], ['Appliance supply', 'Roofing works for flue'], [{ categoryId: 'waterproofing', type: 'suggested' }]),
+  cat('waterproofing', '💧 Waterproofing', 'waterproofing', 'trades',
+    [{ id: 'area', label: 'Area', type: 'select', options: ['Bathroom', 'Laundry', 'Balcony', 'Basement'] }],
+    [{ name: 'Membrane Application', trade: 'Waterproofing', rate: 55, unit: 'area', duration: 1, description: 'AS3740 compliant membrane' }],
+    [], ['AS3740 compliance', 'Membrane supply and application', 'Flood test and certification'], ['Structural repairs', 'Tiling over membrane'], [], 10, 'renovation'),
+  cat('hvac', '❄️ HVAC', 'hvac', 'trades',
+    [{ id: 'type', label: 'Type', type: 'select', options: ['Split system', 'Ducted', 'Evaporative', 'Hydronic'] }],
+    [{ name: 'Installation', trade: 'HVAC', rate: 2800, unit: 'item', duration: 1, description: 'Supply and install system' }],
+    [{ description: 'A/C Unit', allowance: 3000, unit: 'item' }], ['Installation and commissioning', 'Electrical connection'], ['Structural penetrations', 'Building permit for external unit'], [{ categoryId: 'electrical', type: 'auto' }]),
+];
+
+
+===== FILE: src/utils/categories/groups/structuralDeck.ts =====
+import { cat, type WorkCategory } from '../types';
+
+export const STRUCTURAL_DECK_CATEGORIES: WorkCategory[] = [
+  cat('structural', '🏗️ Structural', 'structural', 'structural',
+    [{ id: 'type', label: 'Type', type: 'select', options: ['Wall removal', 'Beam install', 'Opening creation'] }],
+    [{ name: 'Engineering', trade: 'Structural', rate: 2500, unit: 'item', duration: 5, description: 'Engineer design & certification' }, { name: 'Propping & Demo', trade: 'Demo', rate: 1800, unit: 'item', duration: 1, description: 'Prop and remove load-bearing' }, { name: 'Beam Install', trade: 'Structural', rate: 4500, unit: 'item', duration: 2, description: 'Supply and install beam' }],
+    [{ description: 'Steel Beam', allowance: 2500, unit: 'item' }],
+    ['Engineering certification', 'All structural work'], ['Making good finishes', 'Relocating services'], [{ categoryId: 'demolition', type: 'auto' }], 15, 'structural'),
+  cat('decking', '🪵 Decking', 'decking', 'external',
+    [{ id: 'type', label: 'Type', type: 'select', options: ['Merbau', 'Composite', 'Spotted Gum', 'Treated Pine'] }],
+    [{ name: 'Subframe', trade: 'Carpentry', rate: 85, unit: 'area', duration: 2, description: 'H4 treated subframe' }, { name: 'Decking Install', trade: 'Carpentry', rate: 180, unit: 'area', duration: 3, description: 'Supply and install decking' }, { name: 'Balustrade', trade: 'Carpentry', rate: 280, unit: 'linear', duration: 2, description: 'If required >1m height' }],
+    [{ description: 'Decking Material', allowance: 120, unit: '$/m²' }],
+    ['Quality subframe', 'Decking installation', 'Stainless steel fixings'], ['Stumps/foundations', 'Staining/oiling', 'Council permits for >1m'], [{ categoryId: 'fencing', type: 'suggested' }]),
+];
+
+
+===== FILE: src/utils/categories/groups/structuralExtras.ts =====
+import { cat, type WorkCategory } from '../types';
+
+export const STRUCTURAL_EXTRA_CATEGORIES: WorkCategory[] = [
+  cat('underpinning', '🏠 Underpinning', 'underpinning', 'structural',
+    [{ id: 'type', label: 'Type', type: 'select', options: ['Restumping', 'Underpinning', 'Slab repair'] }],
+    [{ name: 'Engineering Assessment', trade: 'Structural', rate: 2500, unit: 'item', duration: 5, description: 'Engineer inspection and report' }, { name: 'Underpinning Works', trade: 'Concreting', rate: 450, unit: 'linear', duration: 5, description: 'Excavate and pour new footings' }, { name: 'Restumping', trade: 'Carpentry', rate: 350, unit: 'item', duration: 3, description: 'Replace stumps and relevel' }],
+    [{ description: 'Engineering Report', allowance: 2000, unit: 'item' }], ['Engineering assessment', 'All labour and materials'], ['Internal making good', 'Plumbing adjustments'], [{ categoryId: 'structural', type: 'auto' }, { categoryId: 'concreting', type: 'auto' }], 15, 'structural'),
+  cat('retainingWalls', '🧱 Retaining Walls', 'retainingWalls', 'external',
+    [{ id: 'type', label: 'Type', type: 'select', options: ['Timber sleeper', 'Concrete block', 'Besser block'] }],
+    [{ name: 'Excavation & Drainage', trade: 'Landscaping', rate: 120, unit: 'linear', duration: 1, description: 'Excavate and install drainage' }, { name: 'Wall Construction', trade: 'Carpentry', rate: 280, unit: 'linear', duration: 2, description: 'Build retaining wall' }],
+    [], ['Drainage behind wall', 'All materials and labour'], ['Engineering for walls >1m', 'Council permits'], [{ categoryId: 'landscaping', type: 'suggested' }, { categoryId: 'concreting', type: 'suggested' }]),
+  cat('steelFraming', '🏗️ Steel & Framing', 'steelFraming', 'structural',
+    [{ id: 'type', label: 'Type', type: 'select', options: ['Steel beam', 'Timber framing', 'Steel posts'] }],
+    [{ name: 'Engineering Design', trade: 'Structural', rate: 1800, unit: 'item', duration: 5, description: 'Engineer specify beam' }, { name: 'Fabrication & Install', trade: 'Structural', rate: 3500, unit: 'item', duration: 2, description: 'Supply and install steel' }],
+    [], ['Engineering certification', 'Supply and installation'], ['Crane hire if required', 'Making good'], [{ categoryId: 'structural', type: 'auto' }, { categoryId: 'demolition', type: 'suggested' }], 15, 'structural'),
+];
+
+
+===== FILE: src/utils/categories/types.ts =====
+/* ─── Segal Build — Category System Types ─── */
+
+export type UnitType = 'area' | 'linear' | 'item' | 'allow';
+export type CategoryArchetype = 'assembly' | 'trade' | 'element' | 'compliance';
+export type DimensionMode = 'area' | 'linear' | 'wall' | 'room' | 'item' | 'roof' | 'none';
+
+export type ScopeQuestion = {
+  id: string;
+  label: string;
+  type: 'select' | 'text' | 'number' | 'checkbox';
+  options?: string[];
+  dependsOn?: { questionId: string; values: string[] };
+};
+
+export type CategoryRelation = {
+  categoryId: string;
+  type: 'auto' | 'suggested';
+};
+
+export type WorkCategory = {
+  id: string;
+  label: string;
+  icon: string;
+  group: string;
+  archetype: CategoryArchetype;
+  dimensionMode: DimensionMode;
+  bundles: string[];
+  supportsPcItems: boolean;
+  usesParametric: boolean;
+  questions: ScopeQuestion[];
+  stages: Array<{
+    name: string;
+    trade: string;
+    rate: number;
+    unit: UnitType;
+    duration: number;
+    description: string;
+  }>;
+  pcItems: Array<{
+    description: string;
+    allowance: number;
+    unit: string;
+  }>;
+  inclusions: string[];
+  exclusions: string[];
+  relations: CategoryRelation[];
+  contingencySuggestion: number;
+  workType: string;
+};
+
+export const CATEGORY_GROUPS: Record<string, string> = {
+  wet: 'Wet Areas & Interiors',
+  structural: 'Structural & Extensions',
+  external: 'External Works',
+  trades: 'Trades & Services',
+  specialty: 'Specialty',
+};
+
+const ARCHETYPE_DEFAULTS: Record<
+  CategoryArchetype,
+  { dimensionMode: DimensionMode; supportsPcItems: boolean; usesParametric: boolean }
+> = {
+  assembly: { dimensionMode: 'area', supportsPcItems: true, usesParametric: false },
+  trade: { dimensionMode: 'none', supportsPcItems: false, usesParametric: true },
+  element: { dimensionMode: 'wall', supportsPcItems: false, usesParametric: false },
+  compliance: { dimensionMode: 'none', supportsPcItems: false, usesParametric: false },
+};
+
+function inferArchetype(id: string, group: string): CategoryArchetype {
+  if (id === 'fireSafety' || id === 'accessibility' || id === 'smartHome') return 'compliance';
+  if (group === 'trades') return 'trade';
+  if (['internalWalls', 'cladding', 'fencing', 'decking', 'retainingWalls', 'rendering', 'paving', 'guttersFascia', 'brickwork', 'insulation', 'acoustic', 'ceilings'].includes(id)) return 'element';
+  return 'assembly';
+}
+
+export function cat(
+  id: string, label: string, icon: string, group: string,
+  questions: ScopeQuestion[], stages: WorkCategory['stages'],
+  pcItems: WorkCategory['pcItems'], inclusions: string[], exclusions: string[],
+  relations: CategoryRelation[], contingency = 10, workType = 'renovation',
+): WorkCategory {
+  const archetype = inferArchetype(id, group);
+  const defs = ARCHETYPE_DEFAULTS[archetype];
+  return {
+    id, label, icon, group, archetype,
+    dimensionMode: defs.dimensionMode, bundles: [],
+    supportsPcItems: defs.supportsPcItems, usesParametric: defs.usesParametric,
+    questions, stages, pcItems, inclusions, exclusions, relations,
+    contingencySuggestion: contingency, workType,
+  };
+}
+
+export function catX(
+  id: string, label: string, icon: string, group: string,
+  archetype: CategoryArchetype, questions: ScopeQuestion[],
+  stages: WorkCategory['stages'], pcItems: WorkCategory['pcItems'],
+  inclusions: string[], exclusions: string[], relations: CategoryRelation[],
+  options: {
+    dimensionMode?: DimensionMode; bundles?: string[];
+    supportsPcItems?: boolean; usesParametric?: boolean;
+    contingency?: number; workType?: string;
+  } = {},
+): WorkCategory {
+  const defs = ARCHETYPE_DEFAULTS[archetype];
+  return {
+    id, label, icon, group, archetype,
+    dimensionMode: options.dimensionMode ?? defs.dimensionMode,
+    bundles: options.bundles ?? [],
+    supportsPcItems: options.supportsPcItems ?? defs.supportsPcItems,
+    usesParametric: options.usesParametric ?? defs.usesParametric,
+    questions, stages, pcItems, inclusions, exclusions, relations,
+    contingencySuggestion: options.contingency ?? 10,
+    workType: options.workType ?? 'renovation',
+  };
+}
+
+
+===== FILE: src/utils/cn.ts =====
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+
+===== FILE: src/utils/company/signature.ts =====
+import type { Company } from '../../types/domain';
+
+const GOOGLE_REVIEW_URL = 'https://g.page/r/CaKlbMKAsPesEAI/review';
+const FACEBOOK_URL = 'https://www.facebook.com/SegalAndCo';
+const INSTAGRAM_URL = 'https://www.instagram.com/Segalbuild/';
+
+export function buildEmailSignature(company: Company): string[] {
+  const website = company.websiteUrl || 'https://www.segalbuild.com.au';
+
+  return [
+    'Kind regards,',
+    '',
+    'James Segal',
+    company.name,
+    `BPC Registrations: ${company.licence}`,
+    `m: ${company.phone}`,
+    `e: ${company.email}`,
+    `w: ${website}`,
+    `ABN: ${company.abn}`,
+    '',
+    'Are you happy with the service you have received from our team?',
+    `If you have a minute, please share a Google review here: ${GOOGLE_REVIEW_URL}`,
+    '',
+    'Segal Build is a word-of-mouth referral business.',
+    'We appreciate you recommending our services to people you know.',
+    '',
+    `Facebook: ${FACEBOOK_URL}`,
+    `Instagram: ${INSTAGRAM_URL}`,
+    '',
+    'Confidentiality notice: This e-mail message may contain confidential or legally privileged information and is intended only for the use of the intended recipient(s). Any unauthorised disclosure, dissemination, distribution or copying is prohibited. E-mails are not secure and cannot be guaranteed to be error free as they can be intercepted, amended, or contain viruses. Segal Build Pty Ltd is not responsible for errors or omissions in this message and denies responsibility for any damage arising from the use of e-mail.',
+  ];
+}
+
+export function buildShortSignature(company: Company): string[] {
+  return [
+    `- ${company.name}`,
+    `${company.phone} | ${company.email}`,
+    company.websiteUrl || 'https://www.segalbuild.com.au',
+  ];
+}
+
+
+===== FILE: src/utils/createScopeFromCategory.ts =====
+import type { ProjectBaseline, QuoteScope } from '../types/domain';
+import type { TradeAnalysis } from './ai/tradeAnalyser';
+import { getCategoryById } from './categories/extended';
+import type { WorkCategory } from './categories/types';
+import { generateId } from './helpers';
+import { getDefaultPCItems, getDefaultInclusions, getDefaultExclusions } from './pricing/quoteDefaults';
+import { resolveBenchmarkRate } from './pricing/rawlinsonsBenchmarkResolver';
+import { deriveScopeDimensions, syncScopePricing } from '../components/variationBuilder/scopePricing';
+
+export function createScopeFromCategory(
+  categoryId: string,
+  scopeInput: string,
+  tradeAnalysis: TradeAnalysis | undefined,
+  baseline: ProjectBaseline,
+): QuoteScope | null {
+  const category = getCategoryById(categoryId);
+  if (!category) return null;
+
+  const dimensions = deriveScopeDimensions(categoryId, baseline);
+  const parametricItems = (tradeAnalysis?.items || []).map((item) => ({
+    id: generateId(),
+    unitId: item.unitId,
+    label: item.label,
+    unit: item.unit as 'each' | 'lm' | 'm2' | 'allow',
+    rate: item.rate,
+    quantity: item.quantity,
+    pricingSource: resolveBenchmarkRate(categoryId, item.label, item.unit)?.meta,
+  }));
+
+  const scope: QuoteScope = {
+    id: generateId(),
+    categoryId,
+    categoryLabel: category.label,
+    description: buildTradeSpecificDescription(category, tradeAnalysis, scopeInput),
+    builderNotes: scopeInput || undefined,
+    stages: [],
+    dimensions,
+    answers: {},
+    pcItems: getDefaultPCItems(categoryId),
+    inclusions: getDefaultInclusions(categoryId),
+    exclusions: getDefaultExclusions(categoryId),
+    parametricItems,
+  };
+
+  return syncScopePricing(scope, baseline);
+}
+
+function buildTradeSpecificDescription(
+  category: WorkCategory,
+  tradeAnalysis: TradeAnalysis | undefined,
+  scopeInput: string,
+): string {
+  const aiScope = (tradeAnalysis?.tradeScope || '').trim();
+
+  if (aiScope && !looksLikeWholeProjectScope(aiScope, category)) {
+    return aiScope;
+  }
+
+  const label = category.label.replace(/^[^A-Za-z0-9]+\s*/, '');
+  const itemLabels = (tradeAnalysis?.items || []).map((item) => item.label).filter(Boolean);
+
+  if (itemLabels.length > 0) {
+    return `${label}: ${itemLabels.slice(0, 5).join(', ')}${itemLabels.length > 5 ? ` plus ${itemLabels.length - 5} more item(s)` : ''}.`;
+  }
+
+  if (category.stages.length > 0) {
+    const stages = category.stages.slice(0, 4).map((stage) => stage.name).join(', ');
+    return `${label}: ${stages}.`;
+  }
+
+  if (category.inclusions.length > 0) {
+    return `${label}: ${category.inclusions.slice(0, 4).join(', ')}.`;
+  }
+
+  // Keep room-template categories descriptive, but never copy a whole-project scope into a single trade.
+  if (category.archetype === 'assembly' && scopeInput.trim()) return scopeInput.trim();
+  return `${label}: scope to be detailed for this trade only.`;
+}
+
+function looksLikeWholeProjectScope(text: string, category: WorkCategory): boolean {
+  const lower = text.toLowerCase();
+  const cleanLabel = category.label.replace(/^[^A-Za-z0-9]+\s*/, '').toLowerCase();
+  const wholeProjectSignals = [
+    'scope of works:',
+    'full bathroom renovation',
+    'full kitchen renovation',
+    'whole project',
+    'all bathroom',
+    'all works',
+  ];
+  const numberedSections = /\*?\*?\s*\d+\.\s+[a-z]/i.test(text);
+  const mentionsOtherCommonTrades = [
+    'demolition',
+    'plumbing',
+    'electrical',
+    'waterproofing',
+    'tiling',
+    'painting',
+    'cabinetry',
+  ].filter((term) => lower.includes(term)).length;
+
+  if (lower.includes(cleanLabel)) return false;
+  return wholeProjectSignals.some((signal) => lower.includes(signal)) || numberedSections || mentionsOtherCommonTrades >= 3;
+}
+
+
+===== FILE: src/utils/estimatorReview.ts =====
+import type { EstimatorReviewFlag, QuotePricing, QuoteScope } from '../types/domain';
+import type { TradeAnalysis } from './ai/tradeAnalyser';
+import { calcScopeTotal } from './pricing/engine';
+import { getCategoryById } from './categories/extended';
+
+export type { EstimatorReviewFlag };
+
+type ReviewOptions = {
+  analysisFallback?: boolean;
+  tradeAnalyses?: TradeAnalysis[];
+  contingencyPct?: number;
+};
+
+const isZero = (value: number | undefined) => !value || value <= 0;
+
+export function getEstimatorReviewFlags(
+  scopes: QuoteScope[],
+  pricing: QuotePricing,
+  options: ReviewOptions = {},
+): EstimatorReviewFlag[] {
+  const flags: EstimatorReviewFlag[] = [];
+
+  if (scopes.length === 0) {
+    flags.push({
+      id: 'no-scopes',
+      severity: 'critical',
+      title: 'No scopes added',
+      message: 'Add at least one priced trade scope before issuing a quote or variation.',
+    });
+  }
+
+  if (pricing.tradeCost <= 0 || pricing.total <= 0) {
+    flags.push({
+      id: 'zero-total',
+      severity: 'critical',
+      title: 'Zero-dollar total',
+      message: 'The document total is zero. Confirm rates, quantities and scope pricing before saving.',
+    });
+  }
+
+  if ((options.contingencyPct || 0) >= 15) {
+    flags.push({
+      id: 'high-contingency',
+      severity: 'warning',
+      title: 'High contingency',
+      message: 'Contingency is 15% or higher. Note the reason if this is due to structural risk, access or unknown site conditions.',
+    });
+  }
+
+  if (options.analysisFallback) {
+    flags.push({
+      id: 'ai-fallback',
+      severity: 'warning',
+      title: 'Keyword fallback used',
+      message: 'AI recognition did not run or returned no structured result. Review category selection and quantities manually.',
+    });
+  }
+
+  for (const analysis of options.tradeAnalyses || []) {
+    if (analysis.confidence < 0.5) {
+      flags.push({
+        id: `low-confidence-${analysis.categoryId}`,
+        severity: 'warning',
+        title: 'Low AI confidence',
+        message: `${analysis.label} was detected at ${Math.round(analysis.confidence * 100)}% confidence. Confirm this trade is required.`,
+        categoryLabel: analysis.label,
+      });
+    }
+  }
+
+  for (const scope of scopes) {
+    const category = getCategoryById(scope.categoryId);
+    const scopeTotal = calcScopeTotal(scope);
+    const isManualTemplate = category?.archetype === 'assembly';
+
+    if (!scope.description.trim()) {
+      flags.push({
+        id: `missing-description-${scope.id}`,
+        severity: 'warning',
+        title: 'Missing scope description',
+        message: 'Add customer-facing scope wording before sending this document.',
+        scopeId: scope.id,
+        categoryLabel: scope.categoryLabel,
+      });
+    }
+
+    if (isManualTemplate) {
+      flags.push({
+        id: `manual-template-${scope.id}`,
+        severity: 'info',
+        title: 'Manual template only',
+        message: 'This room template is for planning notes. Ensure costed trade scopes are added separately.',
+        scopeId: scope.id,
+        categoryLabel: scope.categoryLabel,
+      });
+    }
+
+    if (!isManualTemplate && scopeTotal <= 0) {
+      flags.push({
+        id: `zero-cost-${scope.id}`,
+        severity: 'critical',
+        title: 'Scope has no cost',
+        message: 'This priced scope has no trade, stage or BoQ cost. Add rates or remove the scope.',
+        scopeId: scope.id,
+        categoryLabel: scope.categoryLabel,
+      });
+    }
+
+    if (category?.dimensionMode !== 'none' && category?.dimensionMode !== 'item') {
+      const { width, length, height } = scope.dimensions;
+      if (isZero(width) || isZero(length) || isZero(height)) {
+        flags.push({
+          id: `missing-dimensions-${scope.id}`,
+          severity: 'warning',
+          title: 'Dimensions need review',
+          message: 'One or more dimensions are zero. Confirm the measured quantity used for pricing.',
+          scopeId: scope.id,
+          categoryLabel: scope.categoryLabel,
+        });
+      }
+    }
+
+    if (scope.inclusions.length === 0) {
+      flags.push({
+        id: `no-inclusions-${scope.id}`,
+        severity: 'info',
+        title: 'No inclusions listed',
+        message: 'Add inclusions so the client understands what is covered.',
+        scopeId: scope.id,
+        categoryLabel: scope.categoryLabel,
+      });
+    }
+
+    if (scope.exclusions.length === 0) {
+      flags.push({
+        id: `no-exclusions-${scope.id}`,
+        severity: 'info',
+        title: 'No exclusions listed',
+        message: 'Add exclusions to reduce contract ambiguity.',
+        scopeId: scope.id,
+        categoryLabel: scope.categoryLabel,
+      });
+    }
+
+    for (const item of scope.parametricItems || []) {
+      if (item.quantity <= 0 || item.rate <= 0) {
+        flags.push({
+          id: `bad-boq-${item.id}`,
+          severity: 'critical',
+          title: 'BoQ item has zero rate or quantity',
+          message: `${item.label} needs a positive rate and quantity before issuing.`,
+          scopeId: scope.id,
+          categoryLabel: scope.categoryLabel,
+        });
+      }
+    }
+  }
+
+  return flags;
+}
+
+
+===== FILE: src/utils/formatters.ts =====
+/**
+ * Formats a number as Australian Currency (AUD)
+ * Example: 1234.5 -> "$1,234.50"
+ */
+export const formatCurrency = (value: number): string => {
+  if (value === undefined || value === null || isNaN(value)) {
+    return '$0.00';
+  }
+  
+  return new Intl.NumberFormat('en-AU', {
+    style: 'currency',
+    currency: 'AUD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value);
+};
+
+/**
+ * Formats a number with commas for readability
+ * Example: 10000 -> "10,000"
+ */
+export const formatNumber = (value: number): string => {
+  if (value === undefined || value === null || isNaN(value)) {
+    return '0';
+  }
+
+  return new Intl.NumberFormat('en-AU').format(value);
+};
+
+/**
+ * Formats dimensions to 2 decimal places
+ */
+export const formatDimension = (value: number): string => {
+  if (value === undefined || value === null || isNaN(value)) {
+    return '0.00';
+  }
+  return value.toFixed(2);
+};
+
+
+===== FILE: src/utils/helpers.ts =====
+/* ─── Segal Build — Utility Helpers ─── */
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+export function generateId(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+}
+
+export function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('en-AU', {
+    style: 'currency',
+    currency: 'AUD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+export function formatDate(date: string): string {
+  return new Date(date).toLocaleDateString('en-AU', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+export function downloadProjectExport(projectData: Record<string, unknown>) {
+  const blob = new Blob(
+    [JSON.stringify(projectData, null, 2)],
+    { type: 'application/json' },
+  );
+  downloadBlob(blob, `segal-build-export-${projectData.projectName || 'project'}-${new Date().toISOString().split('T')[0]}.json`);
+}
+
+export function downloadBlob(blob: Blob, filename: string): string {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.rel = 'noopener';
+  link.style.display = 'none';
+  document.body.appendChild(link);
+
+  // Some browsers ignore HTMLElement.click() unless a real mouse event is dispatched.
+  link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+  link.remove();
+
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  return url;
+}
+
+export function generateVariationNumber(count: number): string {
+  return `V-${String(count + 1).padStart(3, '0')}`;
+}
+
+
+===== FILE: src/utils/legal/terms.ts =====
+import { TERMS_PART_1 } from './termsPart1';
+import { TERMS_PART_2 } from './termsPart2';
+import { TERMS_PART_3 } from './termsPart3';
+
+export type TermsSection = {
+  title: string;
+  clauses: string[];
+};
+
+export const SEGAL_BUILD_TERMS: TermsSection[] = [
+  ...TERMS_PART_1,
+  ...TERMS_PART_2,
+  ...TERMS_PART_3,
+];
+
+
+===== FILE: src/utils/legal/termsPart1.ts =====
+export const TERMS_PART_1 = [
+  {
+    title: '1. Definitions',
+    clauses: [
+      '1.1 In these Terms: Client means the party engaging Segal Build for the provision of Services.',
+      'Consequential Loss means any special, exemplary or punitive damages, incidental, indirect or consequential damages, losses or expenses, and any loss of use, revenue, profits, reputation, goodwill, business opportunity or anticipated saving or increased cost of working capital.',
+      'Contract means the agreement between Segal Build and the Client for the provision of Services, incorporating these Terms, the Quotation, and any other agreed documents.',
+      'Information means any plans, specifications, drawings, schedules, and other information provided by the Client to Segal Build.',
+      'Price means the price for the Services as set out in the Quotation, subject to any variations in accordance with these Terms.',
+      'Quotation means the document provided by Segal Build to the Client setting out the proposed Services and Price.',
+      'Segal Build means Segal Build Pty. Ltd. and its successors and assigns.',
+      'Services means the building and construction services to be provided by Segal Build to the Client, as described in the Quotation.',
+      'Terms means these terms and conditions.',
+      'Variations means any changes to the Services requested by the Client or required due to unforeseen circumstances.',
+    ],
+  },
+  {
+    title: '2. Quotation and Contract Formation',
+    clauses: [
+      '2.1 Segal Build will provide the Client with a Quotation detailing the proposed Services and Price.',
+      '2.2 The Quotation is valid for 30 days from the date of issue, unless otherwise specified in writing by Segal Build.',
+      '2.3 The Contract is formed when the Client accepts the Quotation in writing, which signifies acceptance of these Terms.',
+      '2.4 Segal Build reserves the right to amend the Quotation to reflect any changes to the scope of work requested by the Client prior to Contract formation.',
+    ],
+  },
+  {
+    title: '3. Scope of Services',
+    clauses: [
+      '3.1 Segal Build will provide the Services to the Client with due care and skill, in substantial accordance with the Contract.',
+      '3.2 Segal Build will obtain all necessary building permits and approvals required for the Services, unless otherwise specified in the Quotation.',
+      "3.3 The Client acknowledges that any program or timeframe provided by Segal Build is an estimate only and may be subject to change due to factors outside Segal Build's reasonable control.",
+    ],
+  },
+  {
+    title: '4. Client Obligations',
+    clauses: [
+      '4.1 The Client must provide accurate and complete Information to Segal Build in a timely manner. Segal Build relies on this information to provide the Services.',
+      '4.2 The Client is responsible for obtaining any necessary consents, easements, or approvals not directly related to the building permits, unless otherwise agreed in writing.',
+      '4.3 The Client must provide safe and unobstructed access to the site for Segal Build and its subcontractors.',
+      '4.4 The Client must ensure that the site conditions are suitable for the provision of the Services.',
+    ],
+  },
+];
+
+
+===== FILE: src/utils/legal/termsPart2.ts =====
+export const TERMS_PART_2 = [
+  {
+    title: '5. Price and Payment',
+    clauses: [
+      '5.1 The Client agrees to pay the Price for the Services as detailed in the Quotation and any agreed Variations.',
+      '5.2 Segal Build will issue invoices to the Client in accordance with the payment schedule outlined in the Quotation. In the absence of a payment schedule in the quotation, Segal Build may issue invoices on a monthly basis for work completed.',
+      '5.3 The Client must make payment to Segal Build within 14 days of the date of a valid invoice.',
+      '5.4 Payment must be made to Segal Build Pty. Ltd. BSB: 083004. Account No.: 971236454.',
+      '5.5 If the Client fails to make payment by the due date, Segal Build may charge interest on the overdue amount at a rate of 10% per annum, calculated daily.',
+      '5.6 Segal Build may suspend the provision of Services if any payment is overdue.',
+      '5.7 This invoice is issued pursuant to the Building and Construction Industry Security of Payment Act 2002 (VIC).',
+    ],
+  },
+  {
+    title: '6. Variations',
+    clauses: [
+      '6.1 The Client may request Variations to the Services by providing a written request to Segal Build.',
+      '6.2 Segal Build will provide a written quotation for the proposed Variation, including any adjustment to the Price and/or timeframe.',
+      '6.3 Segal Build is not obliged to carry out any Variation unless and until both parties have agreed to the Variation in writing.',
+      '6.4 Segal Build may initiate Variations where necessary due to unforeseen site conditions, changes in regulatory requirements, or other circumstances beyond its reasonable control. Segal Build will provide written notice to the client of any variations as soon as reasonably practicable.',
+    ],
+  },
+  {
+    title: '7. Warranties',
+    clauses: [
+      '7.1 Segal Build warrants that the Services will be carried out with reasonable care and skill, and in accordance with relevant building standards.',
+      "7.2 Segal Build's liability for any defect in the Services is limited, at Segal Build's option, to: (a) rectification of the Services; or (b) re-supply of the Services; or (c) payment of the cost of having the Services rectified.",
+      '7.3 To the extent permitted by law, all other warranties, express or implied, are excluded.',
+    ],
+  },
+  {
+    title: '8. Liability and Indemnity',
+    clauses: [
+      "8.1 To the extent permitted by law, Segal Build's liability for Consequential Loss is excluded.",
+      "8.2 The Client indemnifies Segal Build against any claim, loss, or damage arising from: (a) the Client's breach of these Terms; (b) the Client's negligence or willful misconduct; or (c) any defect in the Information provided by the Client.",
+    ],
+  },
+];
+
+
+===== FILE: src/utils/legal/termsPart3.ts =====
+export const TERMS_PART_3 = [
+  {
+    title: '9. Termination',
+    clauses: [
+      "9.1 Either party may terminate the Contract by providing 14 days' written notice to the other party if the other party commits a material breach of the Contract and fails to remedy the breach within 7 days of receiving written notice of the breach.",
+      '9.2 Segal Build may terminate the Contract immediately by providing written notice to the Client if the Client: (a) becomes insolvent; or (b) fails to make a payment due under the Contract.',
+      '9.3 Upon termination of the Contract, the Client must pay Segal Build for all Services provided up to the date of termination, including any costs reasonably incurred by Segal Build in connection with the termination.',
+    ],
+  },
+  {
+    title: '10. Intellectual Property',
+    clauses: [
+      '10.1 The Client retains ownership of any documents they provide to Segal Build and grants Segal Build a license to use these documents for the duration of the Contract.',
+      '10.2 Segal Build will own any intellectual property in the Delivery Documents, and grant the Client a royalty-free license to use these documents.',
+    ],
+  },
+  {
+    title: '11. Dispute Resolution',
+    clauses: [
+      '11.1 If a dispute arises in connection with the Contract, the parties agree to first attempt to resolve the dispute through good faith negotiations.',
+      '11.2 If the dispute cannot be resolved through negotiation within a reasonable period, the parties will endeavour to resolve the dispute by mediation in accordance with the rules of the Australian Disputes Centre.',
+      '11.3 If the dispute remains unresolved after mediation, either party may commence legal proceedings.',
+    ],
+  },
+  {
+    title: '12. General Provisions',
+    clauses: [
+      '12.1 These Terms are governed by and construed in accordance with the laws of Victoria, Australia.',
+      "12.2 Any notice required or permitted to be given under these Terms must be in writing and delivered to the other party's address.",
+      '12.3 These Terms, together with the Quotation and any other documents expressly incorporated by reference, constitute the entire agreement between the parties relating to the Services.',
+    ],
+  },
+];
+
+
+===== FILE: src/utils/pdfGenerator.ts =====
+import { jsPDF } from 'jspdf';
+import type { Company, Project, Variation } from '../types/domain';
+import { PDF_MARGIN } from './pdfQuote/pdfConstants';
+import { drawHeader } from './pdfQuote/pdfHeader';
+import { drawLineItems } from './pdfQuote/pdfLineItems';
+import { drawFooterOnAllPages } from './pdfQuote/pdfLayout';
+import { drawProjectOverview, drawScopeNarrative } from './pdfQuote/pdfScopeSections';
+import { drawAcceptance, drawPaymentTerms, drawTotals } from './pdfQuote/pdfTotals';
+import { drawTerms } from './pdfQuote/pdfTerms';
+
+export function generateQuotePDF(variation: Variation, project: Project, company: Company): jsPDF {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.width;
+  const pageHeight = doc.internal.pageSize.height;
+  const quoteDate = new Date(variation.createdAt || Date.now());
+  const expiryDate = new Date(quoteDate);
+  expiryDate.setDate(expiryDate.getDate() + 30);
+  const quoteNo = variation.variationNumber || `S${variation.id.slice(0, 5).toUpperCase()}`;
+
+  let y = drawHeader(doc, company, project, variation, quoteNo, quoteDate, expiryDate);
+  y = drawProjectOverview(doc, variation, project, y, PDF_MARGIN, pageWidth, pageHeight);
+  y = drawScopeNarrative(doc, variation, y, PDF_MARGIN, pageWidth, pageHeight);
+  y = drawLineItems(doc, variation, y, PDF_MARGIN, pageWidth, pageHeight);
+  y = drawTotals(doc, variation, y, PDF_MARGIN, pageWidth, pageHeight);
+  y = drawPaymentTerms(doc, y, PDF_MARGIN, pageWidth, pageHeight);
+  drawAcceptance(doc, y, PDF_MARGIN, pageWidth, pageHeight);
+  drawFooterOnAllPages(doc, company, pageWidth, pageHeight);
+  drawTerms(doc, pageWidth, pageHeight, PDF_MARGIN);
+  drawFooterOnAllPages(doc, company, pageWidth, pageHeight);
+  return doc;
+}

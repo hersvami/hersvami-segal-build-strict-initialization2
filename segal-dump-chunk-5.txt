@@ -1,0 +1,1218 @@
+===== FILE: src/utils/rates/materialRateTypes.ts =====
+export type MaterialRateType = 'supply_only' | 'pc_value';
+
+export interface MaterialRate {
+  item: string;
+  unit: string;
+  rate: number;
+  type: MaterialRateType;
+  notes?: string;
+}
+
+export type MaterialRateCategory = {
+  key: string;
+  label: string;
+  items: MaterialRate[];
+};
+
+export interface RawlinsonsMaterialRatesData {
+  metadata: {
+    source: string;
+    location: string;
+    currency: string;
+    gst_included: boolean;
+    base_date: string;
+    pricing_notes: string;
+    column_reference: string;
+  };
+  material_rates: Record<string, MaterialRate[]>;
+}
+
+export type InstalledCostOptions = {
+  quantity: number;
+  labourHours?: number;
+  labourRate?: number;
+  tradeMargin?: number;
+  escalationFactor?: number;
+};
+
+===== FILE: src/utils/rates/materialRates2021.ts =====
+import { CONSTRUCTION_MATERIAL_RATE_CATEGORIES } from './materialRatesConstruction';
+import { EXTERNAL_MATERIAL_RATE_CATEGORIES } from './materialRatesExternal';
+import { FINISH_MATERIAL_RATE_CATEGORIES } from './materialRatesFinishes';
+import { FIXTURE_MATERIAL_RATE_CATEGORIES } from './materialRatesFixtures';
+import { RAWLINSONS_MATERIAL_RATES_2021_METADATA } from './materialRateMetadata';
+import type { InstalledCostOptions, MaterialRate, RawlinsonsMaterialRatesData } from './materialRateTypes';
+import { DEFAULT_MATERIAL_ESCALATION_RATE, GENERAL_TRADE_INSTALL_MARGIN, MATERIAL_RATE_ESCALATION_TARGET_YEAR, MEP_INSTALL_MARGIN } from './materialRateMetadata';
+
+export const MATERIAL_RATE_CATEGORIES = [
+  ...CONSTRUCTION_MATERIAL_RATE_CATEGORIES,
+  ...FINISH_MATERIAL_RATE_CATEGORIES,
+  ...FIXTURE_MATERIAL_RATE_CATEGORIES,
+  ...EXTERNAL_MATERIAL_RATE_CATEGORIES,
+];
+
+export const RAWLINSONS_MATERIAL_RATES_2021: RawlinsonsMaterialRatesData = {
+  metadata: RAWLINSONS_MATERIAL_RATES_2021_METADATA,
+  material_rates: Object.fromEntries(MATERIAL_RATE_CATEGORIES.map((category) => [category.key, category.items])),
+};
+
+export function getAllMaterialRates(): MaterialRate[] {
+  return MATERIAL_RATE_CATEGORIES.flatMap((category) => category.items);
+}
+
+export function findMaterialRate(query: string): MaterialRate | undefined {
+  const normalized = query.toLowerCase();
+  return getAllMaterialRates()
+    .map((rate) => ({ rate, score: scoreMaterialRate(rate, normalized) }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)[0]?.rate;
+}
+
+export function calculateMaterialEscalationFactor(targetYear = MATERIAL_RATE_ESCALATION_TARGET_YEAR, annualRate = DEFAULT_MATERIAL_ESCALATION_RATE) {
+  const baseYear = new Date(RAWLINSONS_MATERIAL_RATES_2021_METADATA.base_date).getFullYear();
+  return Math.round(Math.pow(1 + annualRate, Math.max(targetYear - baseYear, 0)) * 10000) / 10000;
+}
+
+export function getEscalatedMaterialRate(rate: MaterialRate, escalationFactor = calculateMaterialEscalationFactor()) {
+  return Math.round(rate.rate * escalationFactor * 100) / 100;
+}
+
+export function calculateInstalledMaterialCost(rate: MaterialRate, options: InstalledCostOptions) {
+  const escalatedMaterial = getEscalatedMaterialRate(rate, options.escalationFactor);
+  const materialTotal = escalatedMaterial * options.quantity;
+  const labourTotal = (options.labourHours || 0) * (options.labourRate || 0);
+  const defaultMargin = isMepItem(rate.item) ? MEP_INSTALL_MARGIN : GENERAL_TRADE_INSTALL_MARGIN;
+  const margin = options.tradeMargin ?? defaultMargin;
+  return Math.round((materialTotal + labourTotal) * (1 + margin));
+}
+
+export function applyGstToMaterialRate(value: number) {
+  return RAWLINSONS_MATERIAL_RATES_2021_METADATA.gst_included ? value : Math.round(value * 1.1 * 100) / 100;
+}
+
+function scoreMaterialRate(rate: MaterialRate, normalizedQuery: string) {
+  const text = `${rate.item} ${rate.unit} ${rate.type}`.toLowerCase();
+  return normalizedQuery.split(/\s+/).filter((token) => token.length > 2 && text.includes(token)).length;
+}
+
+function isMepItem(item: string) {
+  const lower = item.toLowerCase();
+  return ['electric', 'plumb', 'gas', 'hot water', 'shower', 'basin', 'sink', 'w.c.', 'wc'].some((token) => lower.includes(token));
+}
+
+===== FILE: src/utils/rates/materialRatesConstruction.ts =====
+import type { MaterialRateCategory } from './materialRateTypes';
+
+export const CONCRETE_CEMENTITIOUS_RATES: MaterialRateCategory = { key: 'concrete_cementitious', label: 'Concrete & Cementitious', items: [
+  { item: '20 MPa Ready-Mix Concrete', unit: 'cum', rate: 195, type: 'supply_only', notes: 'Delivered to site' },
+  { item: '25 MPa Ready-Mix Concrete', unit: 'cum', rate: 200, type: 'supply_only', notes: 'Delivered to site' },
+  { item: '32 MPa Ready-Mix Concrete', unit: 'cum', rate: 210, type: 'supply_only', notes: 'Delivered to site' },
+  { item: 'Cement Mortar (pre-bagged)', unit: 'cum', rate: 215, type: 'supply_only' },
+  { item: 'Lightweight Concrete (600kg/cum)', unit: 'cum', rate: 720, type: 'supply_only' },
+  { item: 'Lightweight Concrete (1200kg/cum)', unit: 'cum', rate: 640, type: 'supply_only' },
+  { item: 'Lightweight Concrete (1800kg/cum)', unit: 'cum', rate: 525, type: 'supply_only' },
+  { item: 'Brightonlite Cement', unit: 'cum', rate: 102, type: 'supply_only' },
+  { item: 'White Cement', unit: 'cum', rate: 104, type: 'supply_only' },
+] };
+
+export const REINFORCEMENT_STEEL_RATES: MaterialRateCategory = { key: 'reinforcement_steel', label: 'Reinforcement Steel', items: [
+  { item: 'Deformed Y-Bar (cut & delivered, incl. rolling margin)', unit: 'tonne', rate: 1580, type: 'supply_only' },
+  { item: 'Fabric Reinforcement SL81 (full sheets)', unit: 'sqm', rate: 27.4, type: 'supply_only' },
+  { item: 'Fabric Reinforcement SL92 (full sheets)', unit: 'sqm', rate: 19.85, type: 'supply_only' },
+  { item: 'Fabric Reinforcement RL1118 (rectangular)', unit: 'sqm', rate: 33.5, type: 'supply_only' },
+] };
+
+export const MASONRY_BRICKS_BLOCKS_RATES: MaterialRateCategory = { key: 'masonry_bricks_blocks', label: 'Masonry, Bricks & Blocks', items: [
+  { item: 'Common Clay Brick (230x110x76mm)', unit: '1000', rate: 750, type: 'supply_only' },
+  { item: 'Facing Clay Brick', unit: '1000', rate: 900, type: 'supply_only' },
+  { item: 'Concrete Masonry Brick (230x110x76mm)', unit: '1000', rate: 673, type: 'supply_only' },
+  { item: 'Concrete Hollow Block (100x200x400mm, Natural)', unit: '100', rate: 186, type: 'supply_only' },
+  { item: 'Concrete Hollow Block (200x200x400mm, Natural)', unit: '100', rate: 279, type: 'supply_only' },
+  { item: 'Concrete Solid Block (100x200x400mm, Natural)', unit: '100', rate: 218, type: 'supply_only' },
+  { item: 'Scoria Blend Block 2hr (200x200x400mm)', unit: '100', rate: 405, type: 'supply_only' },
+] };
+
+export const TIMBER_CARPENTRY_SUPPLY_RATES: MaterialRateCategory = { key: 'timber_carpentry_supply', label: 'Timber & Carpentry Supply', items: [
+  { item: 'Pine 100x50mm MGP10', unit: 'm', rate: 12.65, type: 'supply_only' },
+  { item: 'Pine 150x50mm MGP10', unit: 'm', rate: 19.5, type: 'supply_only' },
+  { item: 'Pine 200x50mm MGP10', unit: 'm', rate: 25.7, type: 'supply_only' },
+  { item: 'Pine 100x38mm MGP10 (Studs)', unit: 'm', rate: 10.25, type: 'supply_only' },
+  { item: 'Oregon 90x35mm F7', unit: 'm', rate: 10.85, type: 'supply_only' },
+  { item: 'Hardwood 90x45mm F17', unit: 'm', rate: 16.3, type: 'supply_only' },
+  { item: 'Laminated Pine Beam (190x80mm B-Grade)', unit: 'm', rate: 22, type: 'supply_only' },
+  { item: 'Laminated Oregon Beam (270x80mm B-Grade)', unit: 'm', rate: 26.5, type: 'supply_only' },
+] };
+
+export const CONSTRUCTION_MATERIAL_RATE_CATEGORIES = [
+  CONCRETE_CEMENTITIOUS_RATES,
+  REINFORCEMENT_STEEL_RATES,
+  MASONRY_BRICKS_BLOCKS_RATES,
+  TIMBER_CARPENTRY_SUPPLY_RATES,
+];
+
+===== FILE: src/utils/rates/materialRatesExternal.ts =====
+import type { MaterialRateCategory } from './materialRateTypes';
+
+export const INSULATION_SARKING_PC_RATES: MaterialRateCategory = { key: 'insulation_sarking_pc', label: 'Insulation & Sarking PC', items: [
+  { item: 'Glasswool Batts R1.5', unit: 'sqm', rate: 6.5, type: 'pc_value' },
+  { item: 'Glasswool Batts R2.0', unit: 'sqm', rate: 6.5, type: 'pc_value' },
+  { item: 'Glasswool Batts R2.5', unit: 'sqm', rate: 7, type: 'pc_value' },
+  { item: 'Polyester Batts R2.5', unit: 'sqm', rate: 9.5, type: 'pc_value' },
+  { item: 'Polyester Blanket 50mm', unit: 'sqm', rate: 6.4, type: 'pc_value' },
+  { item: 'Aluminium Foil Sarking 430/530 Double Sided', unit: 'sqm', rate: 3.8, type: 'pc_value' },
+  { item: 'Reflective Air Cell Insulation (Closed Cell)', unit: 'sqm', rate: 8.5, type: 'pc_value' },
+] };
+
+export const LANDSCAPING_EXTERNAL_PC_RATES: MaterialRateCategory = { key: 'landscaping_external_pc', label: 'Landscaping & External PC', items: [
+  { item: 'Top Soil (Spread & Levelled)', unit: 'cum', rate: 63.2, type: 'pc_value' },
+  { item: 'Roll Turf (400mm Wide)', unit: 'sqm', rate: 9, type: 'pc_value' },
+  { item: 'Pine Bark Chips', unit: 'cum', rate: 73.5, type: 'pc_value' },
+  { item: 'Blue Metal Chips (50mm deep incl. plastic)', unit: 'sqm', rate: 11.2, type: 'pc_value' },
+  { item: 'River Pebbles (50mm deep incl. plastic)', unit: 'sqm', rate: 15.9, type: 'pc_value' },
+  { item: 'Lightweight Planting Mixture', unit: 'cum', rate: 107, type: 'pc_value' },
+  { item: 'Synthetic Turf 9600 Denier (Sand Filled)', unit: 'sqm', rate: 32, type: 'pc_value' },
+] };
+
+export const EXTERNAL_MATERIAL_RATE_CATEGORIES = [
+  INSULATION_SARKING_PC_RATES,
+  LANDSCAPING_EXTERNAL_PC_RATES,
+];
+
+===== FILE: src/utils/rates/materialRatesFinishes.ts =====
+import type { MaterialRateCategory } from './materialRateTypes';
+
+export const BENCHTOPS_SURFACES_PC_RATES: MaterialRateCategory = { key: 'benchtops_surfaces_pc', label: 'Benchtops & Surfaces PC', items: [
+  { item: 'Solid Surface (12mm Corian/Staron/Hi-Macs)', unit: 'sqm', rate: 750, type: 'pc_value' },
+  { item: 'Quartz Surface (20mm Caesarstone/Essastone)', unit: 'sqm', rate: 750, type: 'pc_value' },
+  { item: 'Granite (20mm Natural Stone)', unit: 'sqm', rate: 1450, type: 'pc_value' },
+  { item: 'Marble (20mm Natural Stone)', unit: 'sqm', rate: 1450, type: 'pc_value' },
+  { item: 'Postformed Laminate (35-40mm Laminex/Polytec)', unit: 'sqm', rate: 500, type: 'pc_value' },
+  { item: 'Stainless Steel (Type 304)', unit: 'sqm', rate: 1000, type: 'pc_value' },
+  { item: 'Laminated Solid Timber (40mm 2-pack clear)', unit: 'sqm', rate: 1030, type: 'pc_value' },
+  { item: 'Glassfibre Reinforced Concrete (GRC)', unit: 'sqm', rate: 1300, type: 'pc_value' },
+  { item: 'Colour Backed Glass Splashback (6mm Toughened)', unit: 'sqm', rate: 390, type: 'pc_value' },
+] };
+
+export const TILES_PAVING_PC_RATES: MaterialRateCategory = { key: 'tiles_paving_pc', label: 'Tiles & Paving PC', items: [
+  { item: 'Ceramic Wall/Floor Tile 150x150mm White Glazed', unit: 'sqm', rate: 29, type: 'pc_value' },
+  { item: 'Ceramic Wall/Floor Tile 200x200mm', unit: 'sqm', rate: 40, type: 'pc_value' },
+  { item: 'Glazed Mosaic Tile 61x61mm', unit: 'sqm', rate: 40, type: 'pc_value' },
+  { item: 'Quarry Tile 250x250mm Light Duty', unit: 'sqm', rate: 33, type: 'pc_value' },
+  { item: 'Quarry Tile 300x300mm Heavy Duty', unit: 'sqm', rate: 38, type: 'pc_value' },
+  { item: 'Vitreous Unglazed Porcelain 200x200mm', unit: 'sqm', rate: 50, type: 'pc_value' },
+  { item: 'Terracotta Floor Tile 300x300mm', unit: 'sqm', rate: 42, type: 'pc_value' },
+] };
+
+export const RESILIENT_FLOORING_PC_RATES: MaterialRateCategory = { key: 'resilient_flooring_pc', label: 'Resilient Flooring PC', items: [
+  { item: 'Carpet - Nylon Commercial Medium Use (18oz)', unit: 'sqm', rate: 17, type: 'pc_value' },
+  { item: 'Carpet - Wool Tufted Medium Use (35-45oz)', unit: 'sqm', rate: 30, type: 'pc_value' },
+  { item: 'Carpet - Polypropylene Direct Stick', unit: 'sqm', rate: 10, type: 'pc_value' },
+  { item: 'Vinyl Semi-Rigid Tiles 2.0mm (Excelon/Polyflor)', unit: 'sqm', rate: 10, type: 'pc_value' },
+  { item: 'Vinyl Homogeneous Sheet 1.5mm', unit: 'sqm', rate: 16.5, type: 'pc_value' },
+  { item: 'Linoleum Heavy Duty 2.5mm', unit: 'sqm', rate: 40, type: 'pc_value' },
+  { item: 'Cork Tiles 305x305x6.0mm', unit: 'sqm', rate: 35, type: 'pc_value' },
+  { item: 'Rubber Tiles Studded 2.7mm', unit: 'sqm', rate: 50, type: 'pc_value' },
+] };
+
+export const PAINTING_WALLCOVERINGS_PC_RATES: MaterialRateCategory = { key: 'painting_wallcoverings_pc', label: 'Painting & Wallcoverings PC', items: [
+  { item: 'Wallpaper - Domestic Standard', unit: 'sqm', rate: 6.5, type: 'pc_value' },
+  { item: 'Vinyl Paper-Backed Fabric', unit: 'sqm', rate: 18, type: 'pc_value' },
+  { item: 'Vinyl Fabric - Commercial Heavy Duty', unit: 'sqm', rate: 25, type: 'pc_value' },
+  { item: 'Vinyl Fabric - Extra Heavy Duty', unit: 'sqm', rate: 33, type: 'pc_value' },
+] };
+
+export const FINISH_MATERIAL_RATE_CATEGORIES = [
+  BENCHTOPS_SURFACES_PC_RATES,
+  TILES_PAVING_PC_RATES,
+  RESILIENT_FLOORING_PC_RATES,
+  PAINTING_WALLCOVERINGS_PC_RATES,
+];
+
+===== FILE: src/utils/rates/materialRatesFixtures.ts =====
+import type { MaterialRateCategory } from './materialRateTypes';
+
+export const SANITARY_FIXTURES_PC_RATES: MaterialRateCategory = { key: 'sanitary_fixtures_pc', label: 'Sanitary Fixtures PC', items: [
+  { item: 'W.C. Suite - Plastic Integrated Cistern', unit: 'no', rate: 435, type: 'pc_value' },
+  { item: 'W.C. Suite - Vitreous China Close Coupled', unit: 'no', rate: 900, type: 'pc_value' },
+  { item: 'W.C. Suite - In-Wall Cistern', unit: 'no', rate: 1050, type: 'pc_value' },
+  { item: 'Basin - Wall Mounted 10L', unit: 'no', rate: 420, type: 'pc_value' },
+  { item: 'Basin - Vanity 12L', unit: 'no', rate: 355, type: 'pc_value' },
+  { item: 'Bath - Porcelain Enamelled Steel 1675x760mm', unit: 'no', rate: 1145, type: 'pc_value' },
+  { item: 'Shower Base - Acrylic 900x900mm', unit: 'no', rate: 425, type: 'pc_value' },
+  { item: 'Kitchen Sink - 1234mm Single Bowl w/ Drainer', unit: 'no', rate: 540, type: 'pc_value' },
+  { item: 'Kitchen Sink - 1842mm Double Bowl w/ Drainer', unit: 'no', rate: 1030, type: 'pc_value' },
+  { item: 'Laundry Trough - 45L Flush', unit: 'no', rate: 765, type: 'pc_value' },
+  { item: 'Spa Bath - 1650mm (10 jets)', unit: 'no', rate: 1420, type: 'pc_value' },
+  { item: 'Urinal - Stainless Steel Single Stall', unit: 'no', rate: 1310, type: 'pc_value' },
+  { item: 'Toilet Seat - Hard Plastic Double Flap', unit: 'no', rate: 90, type: 'pc_value' },
+] };
+
+export const TAPWARE_VALVES_PC_RATES: MaterialRateCategory = { key: 'tapware_valves_pc', label: 'Tapware & Valves PC', items: [
+  { item: 'Basin Combination Set', unit: 'set', rate: 345, type: 'pc_value' },
+  { item: 'Basin Mixer Set', unit: 'set', rate: 515, type: 'pc_value' },
+  { item: 'Bath Combination Set', unit: 'set', rate: 335, type: 'pc_value' },
+  { item: 'Bath Mixer Set with Diverter', unit: 'set', rate: 435, type: 'pc_value' },
+  { item: 'Laundry Mixer Set', unit: 'set', rate: 340, type: 'pc_value' },
+  { item: 'Pillar Tap - Standard Handle', unit: 'no', rate: 165, type: 'pc_value' },
+  { item: 'Shower Mixer Set', unit: 'set', rate: 405, type: 'pc_value' },
+  { item: 'Shower Arm & Rose Combination', unit: 'set', rate: 180, type: 'pc_value' },
+  { item: 'Sink Combination Set', unit: 'set', rate: 585, type: 'pc_value' },
+  { item: 'Sink Mixer Set', unit: 'set', rate: 340, type: 'pc_value' },
+  { item: 'Laboratory Set - Two Way', unit: 'set', rate: 550, type: 'pc_value' },
+  { item: 'Washing Machine Cock', unit: 'no', rate: 350, type: 'pc_value' },
+] };
+
+export const HOT_WATER_UNITS_PC_RATES: MaterialRateCategory = { key: 'hot_water_units_pc', label: 'Hot Water Units PC', items: [
+  { item: 'Electric Instantaneous Multi-Point', unit: 'no', rate: 640, type: 'pc_value' },
+  { item: 'Electric Storage 80L (Vitreous Glass Lining)', unit: 'no', rate: 625, type: 'pc_value' },
+  { item: 'Electric Storage 125L', unit: 'no', rate: 720, type: 'pc_value' },
+  { item: 'Gas Continuous Flow 27L (Internal)', unit: 'no', rate: 2340, type: 'pc_value' },
+  { item: 'Gas Storage 135L (External 4-Star)', unit: 'no', rate: 1040, type: 'pc_value' },
+  { item: 'Heat Pump 310L (Cooler Climates)', unit: 'no', rate: 4190, type: 'pc_value' },
+  { item: 'Solar 180L w/ 1 Collector (Electric Booster)', unit: 'no', rate: 4200, type: 'pc_value' },
+] };
+
+export const FIXTURE_MATERIAL_RATE_CATEGORIES = [
+  SANITARY_FIXTURES_PC_RATES,
+  TAPWARE_VALVES_PC_RATES,
+  HOT_WATER_UNITS_PC_RATES,
+];
+
+===== FILE: src/utils/rates/rawlinsons2021.ts =====
+export type {
+  RawlinsonsData,
+  RawlinsonsRateItem,
+  RawlinsonsWageRates,
+  TradeCategory,
+  TradeItem,
+} from './rawlinsonsTypes';
+export {
+  RAWLINSONS_2021_METADATA,
+  RAWLINSONS_2021_WAGE_RATES_MELBOURNE,
+} from './rawlinsonsMetadata';
+export { RAWLINSONS_2021_RATES } from './rawlinsonsRates';
+export { RAWLINSONS_DATA } from './rawlinsonsData';
+export { findRawlinsonsRate } from './rawlinsonsMatcher';
+export {
+  DEFAULT_ANNUAL_ESCALATION_RATE,
+  DEFAULT_ESCALATION_TARGET_YEAR,
+  DEFAULT_PRELIMINARIES_RATE,
+  DEFAULT_RAWLINSONS_ESCALATION,
+  applyGstToRawlinsonsRate,
+  calculatePreliminariesAllowance,
+  calculateRawlinsonsEscalationFactor,
+  getEscalatedRawlinsonsRate,
+} from './rawlinsonsEscalation';
+
+===== FILE: src/utils/rates/rawlinsonsData.ts =====
+import { RAWLINSONS_2021_METADATA, RAWLINSONS_2021_WAGE_RATES_MELBOURNE } from './rawlinsonsMetadata';
+import { RAWLINSONS_2021_RATES } from './rawlinsonsRates';
+import type { RawlinsonsData, TradeCategory, TradeItem } from './rawlinsonsTypes';
+
+export const RAWLINSONS_DATA: RawlinsonsData = {
+  metadata: RAWLINSONS_2021_METADATA,
+  wage_rates_melbourne: RAWLINSONS_2021_WAGE_RATES_MELBOURNE,
+  trades: RAWLINSONS_2021_RATES.reduce<TradeCategory[]>((groups, row) => {
+    const existing = groups.find((group) => group.trade === row.trade);
+    const item = normalizeItem(row);
+    if (existing) existing.items.push(item);
+    else groups.push({ trade: row.trade, items: [item] });
+    return groups;
+  }, []),
+};
+
+function normalizeItem(row: (typeof RAWLINSONS_2021_RATES)[number]): TradeItem {
+  return {
+    item: row.item,
+    unit: row.unit,
+    rate: row.rate,
+    cost_type: row.cost_type || (row.supplyAndInstall || row.supply_and_install ? 'composite' : 'material_only'),
+    material_cost: row.material_cost ?? null,
+    labour_cost: row.labour_cost ?? null,
+    notes: row.notes || '',
+    supply_and_install: row.supply_and_install ?? row.supplyAndInstall ?? false,
+  };
+}
+
+===== FILE: src/utils/rates/rawlinsonsEscalation.ts =====
+import { RAWLINSONS_2021_METADATA } from './rawlinsonsMetadata';
+import { findRawlinsonsRate, withEscalation } from './rawlinsonsMatcher';
+
+export const DEFAULT_ANNUAL_ESCALATION_RATE = 0.045;
+export const DEFAULT_ESCALATION_TARGET_YEAR = 2025;
+export const DEFAULT_PRELIMINARIES_RATE = 0.10;
+
+export function calculateRawlinsonsEscalationFactor(
+  targetYear = DEFAULT_ESCALATION_TARGET_YEAR,
+  annualRate = DEFAULT_ANNUAL_ESCALATION_RATE,
+): number {
+  const baseYear = new Date(RAWLINSONS_2021_METADATA.base_date).getFullYear();
+  const years = Math.max(targetYear - baseYear, 0);
+  return Math.round(Math.pow(1 + annualRate, years) * 10000) / 10000;
+}
+
+export const DEFAULT_RAWLINSONS_ESCALATION = calculateRawlinsonsEscalationFactor();
+
+export function getEscalatedRawlinsonsRate(
+  categoryId: string,
+  label: string,
+  unit?: string,
+  escalation = DEFAULT_RAWLINSONS_ESCALATION,
+) {
+  const match = findRawlinsonsRate(categoryId, label, unit);
+  if (!match) return undefined;
+  return {
+    ...withEscalation(match, escalation),
+    sourceLabel: `${RAWLINSONS_2021_METADATA.source}, escalated ${Math.round((escalation - 1) * 100)}% using ${Math.round(DEFAULT_ANNUAL_ESCALATION_RATE * 1000) / 10}% p.a. to ${DEFAULT_ESCALATION_TARGET_YEAR}`,
+  };
+}
+
+export function applyGstToRawlinsonsRate(rate: number): number {
+  return RAWLINSONS_2021_METADATA.gst_included ? rate : Math.round(rate * 1.1 * 100) / 100;
+}
+
+export function calculatePreliminariesAllowance(projectValueExGst: number, rate = DEFAULT_PRELIMINARIES_RATE): number {
+  return Math.round(projectValueExGst * rate);
+}
+
+===== FILE: src/utils/rates/rawlinsonsMatcher.ts =====
+import { RAWLINSONS_2021_METADATA } from './rawlinsonsMetadata';
+import { RAWLINSONS_2021_RATES } from './rawlinsonsRates';
+import type { RawlinsonsRateItem } from './rawlinsonsTypes';
+
+const CATEGORY_KEYWORDS: Record<string, string[]> = {
+  demolition: ['demolition', 'excavation', 'site'],
+  concreting: ['concrete', 'slab', 'formwork', 'reinforcement'],
+  brickwork: ['brick', 'block'],
+  structural: ['steel', 'beam', 'column', 'structural'],
+  steelFraming: ['steel', 'beam', 'framing'],
+  carpentry: ['timber', 'framing', 'floor', 'roof'],
+  internalWalls: ['wall framing', 'plasterboard', 'lining'],
+  plastering: ['plasterboard', 'lining', 'ceiling'],
+  cabinetry: ['cabinet', 'joinery', 'benchtop'],
+  kitchen: ['cabinet', 'benchtop', 'sink'],
+  windowsDoors: ['door', 'window', 'hardware'],
+  roofing: ['roof', 'downpipe', 'eaves'],
+  cladding: ['cladding', 'fibre cement', 'weatherboard'],
+  insulation: ['insulation', 'batts', 'sarking'],
+  flooring: ['flooring', 'carpet', 'vinyl', 'skirting'],
+  tiling: ['tiles', 'tiling', 'ceramic', 'quarry'],
+  painting: ['paint', 'painting', 'wallpaper'],
+  plumbing: ['wc', 'basin', 'bath', 'shower', 'sink', 'drain'],
+  electrical: ['light', 'power point', 'smoke alarm', 'electrical'],
+  hvac: ['air-conditioning', 'ducted', 'split system'],
+  landscaping: ['paving', 'fence', 'lawn', 'topsoil'],
+  fencing: ['fence'],
+  paving: ['paving', 'concrete paving', 'brick paving'],
+};
+
+export function findRawlinsonsRate(categoryId: string, label: string, unit?: string) {
+  const haystack = `${categoryId} ${label}`.toLowerCase();
+  const keywords = CATEGORY_KEYWORDS[categoryId] || [categoryId];
+  const candidates = RAWLINSONS_2021_RATES.map((rate) => ({ rate, score: scoreRate(rate, keywords, haystack, unit) }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score);
+  return candidates[0]?.rate;
+}
+
+export function withEscalation(match: RawlinsonsRateItem, escalation: number) {
+  return {
+    ...match,
+    adjustedRate: Math.round(match.rate * escalation * 100) / 100,
+    escalation,
+    gstIncluded: RAWLINSONS_2021_METADATA.gst_included,
+    preliminariesIncluded: false,
+  };
+}
+
+function scoreRate(rate: RawlinsonsRateItem, keywords: string[], haystack: string, unit?: string) {
+  const itemText = `${rate.trade} ${rate.item}`.toLowerCase();
+  let score = 0;
+  for (const keyword of keywords) if (itemText.includes(keyword)) score += 4;
+  for (const token of haystack.split(/\s+/).filter((token) => token.length > 3)) {
+    if (itemText.includes(token)) score += 1;
+  }
+  if (unit && unitsCompatible(unit, rate.unit)) score += 2;
+  return score;
+}
+
+function unitsCompatible(appUnit: string, rawUnit: string) {
+  const app = appUnit.toLowerCase();
+  const raw = rawUnit.toLowerCase();
+  if ((app === 'area' || app === 'm2') && raw === 'sqm') return true;
+  if ((app === 'linear' || app === 'lm' || app === 'm') && raw === 'm') return true;
+  if ((app === 'item' || app === 'each') && ['no', 'each', 'point'].includes(raw)) return true;
+  if (app === 'allow') return true;
+  return app === raw;
+}
+
+===== FILE: src/utils/rates/rawlinsonsMetadata.ts =====
+import type { RawlinsonsWageRates } from './rawlinsonsTypes';
+
+export const RAWLINSONS_2021_METADATA = {
+  source: 'Rawlinsons Construction Cost Guide 2021 (Edition 29)',
+  location: 'Melbourne, VIC, Australia',
+  currency: 'AUD',
+  gst_included: false,
+  base_date: '2021-01-01',
+  pricing_methodology:
+    "Prices reflect average market rates for $250k-$1.5M projects. Composite rates include materials, labour, waste, fixings, and builder's margin (+7.5% for general trades, +5.0% for electrical/mechanical). Preliminaries, site establishment, and statutory fees are excluded unless explicitly listed.",
+  notes:
+    "Use 'cost_type' field to distinguish composite vs material/labour splits. Apply annual escalation for current year. GST (10%) must be added where applicable.",
+};
+
+export const RAWLINSONS_2021_WAGE_RATES_MELBOURNE: RawlinsonsWageRates = {
+  labourer_general: 61,
+  tradesman_general: 63.5,
+  bricklayer: 64.5,
+  carpenter: 61,
+  joiner: 64.5,
+  glazier: 64,
+  painter: 64,
+  plumbing_labourer: 61,
+  plumber: 73.75,
+  electrician: 72.75,
+  mechanical_services: 72.75,
+  unit: 'AUD/hour',
+};
+
+===== FILE: src/utils/rates/rawlinsonsRates.ts =====
+import type { RawlinsonsRateItem } from './rawlinsonsTypes';
+
+export const RAWLINSONS_2021_RATES: RawlinsonsRateItem[] = [
+  { trade: 'Excavation & Earthworks', item: 'Site excavation light soil', unit: 'cum', rate: 19.6, supplyAndInstall: true },
+  { trade: 'Excavation & Earthworks', item: 'Trench excavation 1m deep light soil', unit: 'm', rate: 54.5, supplyAndInstall: true },
+  { trade: 'Excavation & Earthworks', item: 'Backfilling with clean sand', unit: 'cum', rate: 58, supplyAndInstall: true },
+  { trade: 'Excavation & Earthworks', item: 'Crushed rock filling consolidated', unit: 'cum', rate: 92, supplyAndInstall: true },
+  { trade: 'Excavation & Earthworks', item: 'Bored piers 300mm dia', unit: 'm', rate: 96, supplyAndInstall: true },
+  { trade: 'Concrete Work', item: '20 MPa concrete base supply', unit: 'cum', rate: 195, supplyAndInstall: false },
+  { trade: 'Concrete Work', item: 'Ground slab 100mm thick all-in', unit: 'sqm', rate: 79, supplyAndInstall: true },
+  { trade: 'Concrete Work', item: 'Suspended slab 150mm thick', unit: 'sqm', rate: 233, supplyAndInstall: true },
+  { trade: 'Concrete Work', item: 'Reinforced concrete wall 150mm thick', unit: 'sqm', rate: 405, supplyAndInstall: true },
+  { trade: 'Concrete Work', item: 'Formwork suspended slab Class 3', unit: 'sqm', rate: 129, supplyAndInstall: true },
+  { trade: 'Concrete Work', item: 'Reinforcement bar supply and fix', unit: 'tonne', rate: 2720, supplyAndInstall: true },
+  { trade: 'Brickwork & Blockwork', item: 'Common clay brick 110mm wall', unit: 'sqm', rate: 130, supplyAndInstall: true },
+  { trade: 'Brickwork & Blockwork', item: 'Common clay brick 230mm wall', unit: 'sqm', rate: 260, supplyAndInstall: true },
+  { trade: 'Brickwork & Blockwork', item: 'Concrete block 100mm hollow natural', unit: 'sqm', rate: 128.1, supplyAndInstall: true },
+  { trade: 'Brickwork & Blockwork', item: 'Concrete block 200mm hollow natural', unit: 'sqm', rate: 144.9, supplyAndInstall: true },
+  { trade: 'Brickwork & Blockwork', item: 'Pointing and cleaning one face', unit: 'sqm', rate: 10, supplyAndInstall: true },
+  { trade: 'Structural Steel & Metalwork', item: 'Universal beams and columns bolted', unit: 'tonne', rate: 5900, supplyAndInstall: true },
+  { trade: 'Structural Steel & Metalwork', item: 'Galvanised steel guardrail', unit: 'm', rate: 103, supplyAndInstall: true },
+  { trade: 'Structural Steel & Metalwork', item: 'Duct access panel 600x600mm', unit: 'No', rate: 135, supplyAndInstall: true },
+  { trade: 'Carpentry & Timber Framing', item: 'Timber floor framing 150x50 at 450mm', unit: 'sqm', rate: 70.2, supplyAndInstall: true },
+  { trade: 'Carpentry & Timber Framing', item: 'Wall framing 100x38 studs at 450mm', unit: 'sqm', rate: 42.4, supplyAndInstall: true },
+  { trade: 'Carpentry & Timber Framing', item: 'Roof framing timber up to 10m span', unit: 'sqm', rate: 137, supplyAndInstall: true },
+  { trade: 'Carpentry & Timber Framing', item: 'Hardboard flooring 4.8mm', unit: 'sqm', rate: 28.2, supplyAndInstall: true },
+  { trade: 'Carpentry & Timber Framing', item: 'Particle board flooring 22mm', unit: 'sqm', rate: 35.6, supplyAndInstall: true },
+  { trade: 'Carpentry & Timber Framing', item: 'T&G radiata pine flooring 25mm', unit: 'sqm', rate: 71.2, supplyAndInstall: true },
+  { trade: 'Joinery & Cabinetry', item: 'Benchtop laminate HMR substrate', unit: 'sqm', rate: 500, supplyAndInstall: true },
+  { trade: 'Joinery & Cabinetry', item: 'Benchtop engineered stone 20mm', unit: 'sqm', rate: 950, supplyAndInstall: true },
+  { trade: 'Joinery & Cabinetry', item: 'Floor cupboard unit medium quality 1.2m', unit: 'm', rate: 900, supplyAndInstall: true },
+  { trade: 'Joinery & Cabinetry', item: 'Wall-mounted overhead cabinet', unit: 'm', rate: 375, supplyAndInstall: true },
+  { trade: 'Windows, Doors & Hardware', item: 'Hollow core door 2040x820mm incl frame', unit: 'No', rate: 475, supplyAndInstall: true },
+  { trade: 'Windows, Doors & Hardware', item: 'Solid core door 2040x820mm incl frame', unit: 'No', rate: 530, supplyAndInstall: true },
+  { trade: 'Windows, Doors & Hardware', item: 'Glazed timber door single panel', unit: 'No', rate: 1055, supplyAndInstall: true },
+  { trade: 'Windows, Doors & Hardware', item: 'Roller door domestic ZINCALUME', unit: 'sqm', rate: 271, supplyAndInstall: true },
+  { trade: 'Windows, Doors & Hardware', item: 'Aluminium window domestic standard', unit: 'sqm', rate: 385, supplyAndInstall: true },
+  { trade: 'Roofing & Roof Plumbing', item: 'Steel framed roof concrete tiles', unit: 'sqm', rate: 199, supplyAndInstall: true },
+  { trade: 'Roofing & Roof Plumbing', item: 'Steel framed roof COLORBOND', unit: 'sqm', rate: 197, supplyAndInstall: true },
+  { trade: 'Roofing & Roof Plumbing', item: 'Timber framed roof concrete tiles', unit: 'sqm', rate: 140, supplyAndInstall: true },
+  { trade: 'Roofing & Roof Plumbing', item: 'Timber framed roof COLORBOND', unit: 'sqm', rate: 151, supplyAndInstall: true },
+  { trade: 'Roofing & Roof Plumbing', item: 'Eaves soffit fibre cement 4.5mm', unit: 'sqm', rate: 114, supplyAndInstall: true },
+  { trade: 'Roofing & Roof Plumbing', item: 'Downpipe 100x75mm aluminium', unit: 'm', rate: 34.5, supplyAndInstall: true },
+  { trade: 'Wall & Ceiling Linings', item: 'Plasterboard 10mm to timber frame', unit: 'sqm', rate: 31, supplyAndInstall: true },
+  { trade: 'Wall & Ceiling Linings', item: 'Plasterboard 13mm fire-rated', unit: 'sqm', rate: 36.8, supplyAndInstall: true },
+  { trade: 'Wall & Ceiling Linings', item: 'Fibre cement 6mm Stucco sheet', unit: 'sqm', rate: 59.8, supplyAndInstall: true },
+  { trade: 'Wall & Ceiling Linings', item: 'Fibre cement 4.5mm flexible', unit: 'sqm', rate: 34.2, supplyAndInstall: true },
+  { trade: 'Wall & Ceiling Linings', item: 'Suspended ceiling 600x600 tiles', unit: 'sqm', rate: 78, supplyAndInstall: true },
+  { trade: 'Insulation & Sarking', item: 'Glasswool batts R1.5', unit: 'sqm', rate: 9.2, supplyAndInstall: true },
+  { trade: 'Insulation & Sarking', item: 'Glasswool batts R2.0', unit: 'sqm', rate: 9.4, supplyAndInstall: true },
+  { trade: 'Insulation & Sarking', item: 'Aluminium foil sarking double sided', unit: 'sqm', rate: 6.4, supplyAndInstall: true },
+  { trade: 'Insulation & Sarking', item: 'Polyester batts R2.5', unit: 'sqm', rate: 12.9, supplyAndInstall: true },
+  { trade: 'Flooring & Tiling', item: 'Carpet domestic grade with underlay', unit: 'sqm', rate: 45, supplyAndInstall: true },
+  { trade: 'Flooring & Tiling', item: 'Vinyl sheet domestic grade', unit: 'sqm', rate: 39, supplyAndInstall: true },
+  { trade: 'Flooring & Tiling', item: 'Ceramic tiles 150x150mm PC 29', unit: 'sqm', rate: 107, supplyAndInstall: true },
+  { trade: 'Flooring & Tiling', item: 'Quarry tiles 250x250mm PC 33', unit: 'sqm', rate: 111.5, supplyAndInstall: true },
+  { trade: 'Flooring & Tiling', item: 'Timber skirting MDF 100x25mm painted', unit: 'm', rate: 21.6, supplyAndInstall: true },
+  { trade: 'Painting & Finishes', item: 'Acrylic latex paint smooth 2 coats', unit: 'sqm', rate: 10.05, supplyAndInstall: true },
+  { trade: 'Painting & Finishes', item: 'Acrylic semi-gloss paint smooth', unit: 'sqm', rate: 10.9, supplyAndInstall: true },
+  { trade: 'Painting & Finishes', item: 'Alkyd enamel paint timber metal', unit: 'sqm', rate: 11.1, supplyAndInstall: true },
+  { trade: 'Painting & Finishes', item: 'Wallpaper domestic standard PC 6.50', unit: 'sqm', rate: 21.45, supplyAndInstall: true },
+  { trade: 'Sanitary Plumbing & Drainage', item: 'WC Suite plastic cistern PC 435', unit: 'No', rate: 2150, supplyAndInstall: true },
+  { trade: 'Sanitary Plumbing & Drainage', item: 'WC Suite vitreous china close coupled', unit: 'No', rate: 2700, supplyAndInstall: true },
+  { trade: 'Sanitary Plumbing & Drainage', item: 'Wall Basin modest PC 935', unit: 'No', rate: 2100, supplyAndInstall: true },
+  { trade: 'Sanitary Plumbing & Drainage', item: 'Bath 1675mm built in PC 1145', unit: 'No', rate: 2500, supplyAndInstall: true },
+  { trade: 'Sanitary Plumbing & Drainage', item: 'Shower general PC 585', unit: 'No', rate: 1900, supplyAndInstall: true },
+  { trade: 'Sanitary Plumbing & Drainage', item: 'Kitchen sink 1230mm single bowl', unit: 'No', rate: 2250, supplyAndInstall: true },
+  { trade: 'Sanitary Plumbing & Drainage', item: '100mm PVC sewer drain', unit: 'm', rate: 76, supplyAndInstall: true },
+  { trade: 'Electrical Services', item: 'Light point residential circuit', unit: 'Point', rate: 105, supplyAndInstall: true },
+  { trade: 'Electrical Services', item: 'Power point single residential', unit: 'Point', rate: 105, supplyAndInstall: true },
+  { trade: 'Electrical Services', item: 'Power point twin residential', unit: 'Point', rate: 115, supplyAndInstall: true },
+  { trade: 'Electrical Services', item: 'Ceiling exhaust fan circuit', unit: 'No', rate: 125, supplyAndInstall: true },
+  { trade: 'Electrical Services', item: 'Smoke alarm photoelectric surface', unit: 'Each', rate: 97, supplyAndInstall: true },
+  { trade: 'Electrical Services', item: 'Cost per sqm Medium House', unit: 'sqm', rate: 58.75, supplyAndInstall: true },
+  { trade: 'Mechanical Services HVAC', item: 'Split system air-conditioning', unit: 'sqm', rate: 108, supplyAndInstall: true },
+  { trade: 'Mechanical Services HVAC', item: 'Ducted domestic system zoned', unit: 'sqm', rate: 109, supplyAndInstall: true },
+  { trade: 'Mechanical Services HVAC', item: 'Room air-conditioning residential', unit: 'sqm', rate: 56, supplyAndInstall: true },
+  { trade: 'External Works & Landscaping', item: 'Concrete paving 100mm thick', unit: 'sqm', rate: 74.6, supplyAndInstall: true },
+  { trade: 'External Works & Landscaping', item: 'Brick paving clay on prepared bed', unit: 'sqm', rate: 67.6, supplyAndInstall: true },
+  { trade: 'External Works & Landscaping', item: 'Timber fence 1800mm high', unit: 'm', rate: 81, supplyAndInstall: true },
+  { trade: 'External Works & Landscaping', item: 'Chain link fence 2100mm high', unit: 'm', rate: 74, supplyAndInstall: true },
+  { trade: 'External Works & Landscaping', item: 'Topsoil and lawn 300mm plus turf', unit: 'sqm', rate: 19.7, supplyAndInstall: true },
+];
+
+===== FILE: src/utils/rates/rawlinsonsTypes.ts =====
+export interface TradeItem {
+  item: string;
+  unit: string;
+  rate: number;
+  cost_type: 'composite' | 'material_only' | 'labour_only' | 'hire' | 'provision';
+  material_cost: number | null;
+  labour_cost: number | null;
+  notes: string;
+  supply_and_install: boolean;
+}
+
+export interface TradeCategory {
+  trade: string;
+  items: TradeItem[];
+}
+
+export interface RawlinsonsData {
+  metadata: {
+    source: string;
+    location: string;
+    currency: string;
+    gst_included: boolean;
+    base_date: string;
+    pricing_methodology: string;
+    notes: string;
+  };
+  wage_rates_melbourne: RawlinsonsWageRates;
+  trades: TradeCategory[];
+}
+
+export type RawlinsonsWageRates = {
+  labourer_general: number;
+  tradesman_general: number;
+  bricklayer: number;
+  carpenter: number;
+  joiner: number;
+  glazier: number;
+  painter: number;
+  plumbing_labourer: number;
+  plumber: number;
+  electrician: number;
+  mechanical_services: number;
+  unit: 'AUD/hour';
+};
+
+export type RawlinsonsRateItem = Omit<TradeItem, 'supply_and_install' | 'cost_type' | 'material_cost' | 'labour_cost' | 'notes'> & {
+  trade: string;
+  supply_and_install?: boolean;
+  cost_type?: TradeItem['cost_type'];
+  material_cost?: number | null;
+  labour_cost?: number | null;
+  notes?: string;
+  supplyAndInstall?: boolean;
+};
+
+===== FILE: src/utils/services.ts =====
+export {
+  getModelStatus,
+  callGeminiWithFallback,
+  type GeminiResult,
+} from './services/geminiModels';
+export { polishScopeWithAI, recogniseScopeWithAI } from './services/scopeAi';
+export { isCloudinaryConfigured, uploadPhotoToCloudinary } from './services/cloudinary';
+
+
+===== FILE: src/utils/services/cloudinary.ts =====
+export function isCloudinaryConfigured(): boolean {
+  const env = (import.meta as any).env || {};
+  return Boolean(env.VITE_CLOUDINARY_CLOUD_NAME && env.VITE_CLOUDINARY_UPLOAD_PRESET);
+}
+
+export async function uploadPhotoToCloudinary(file: File): Promise<string> {
+  const env = (import.meta as any).env || {};
+  const cloudName = env.VITE_CLOUDINARY_CLOUD_NAME || '';
+  const preset = env.VITE_CLOUDINARY_UPLOAD_PRESET || '';
+  if (!cloudName || !preset) return URL.createObjectURL(file);
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', preset);
+    const resp = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+    const data = await resp.json();
+    return data.secure_url;
+  } catch {
+    return URL.createObjectURL(file);
+  }
+}
+
+
+===== FILE: src/utils/services/geminiModels.ts =====
+const GEMINI_MODELS = [
+  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', tier: 1, freeRPM: 10, freeRPD: 250 },
+  { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite', tier: 2, freeRPM: 15, freeRPD: 1000 },
+  { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash', tier: 3, freeRPM: 15, freeRPD: 1500 },
+  { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', tier: 4, freeRPM: 5, freeRPD: 100 },
+] as const;
+
+type ModelId = (typeof GEMINI_MODELS)[number]['id'];
+const rateLimitedModels = {} as Partial<Record<ModelId, number>>;
+const RATE_LIMIT_COOLDOWN_MS = 65_000;
+
+function getAvailableModels() {
+  const now = Date.now();
+  return GEMINI_MODELS.filter((model) => {
+    const limitedAt = rateLimitedModels[model.id];
+    if (!limitedAt) return true;
+    if (now - limitedAt > RATE_LIMIT_COOLDOWN_MS) {
+      delete rateLimitedModels[model.id];
+      return true;
+    }
+    return false;
+  });
+}
+
+export type GeminiResult = { text: string; model: string; tier: number; fallback: boolean };
+
+export async function callGeminiWithFallback(prompt: string, apiKey: string): Promise<GeminiResult> {
+  const models = getAvailableModels();
+  if (models.length === 0) throw new Error('All models rate-limited. Try again in 1 minute.');
+
+  for (let i = 0; i < models.length; i++) {
+    const model = models[i];
+    try {
+      const resp = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model.id}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { maxOutputTokens: 4096, temperature: 0.2 },
+          }),
+        },
+      );
+      if (resp.status === 429 || resp.status === 503) {
+        rateLimitedModels[model.id] = Date.now();
+        continue;
+      }
+      if (!resp.ok) continue;
+      const data = await resp.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) continue;
+      return { text, model: model.id, tier: model.tier, fallback: i > 0 };
+    } catch {
+      continue;
+    }
+  }
+  throw new Error('All free models exhausted. Using keyword fallback.');
+}
+
+export function getModelStatus() {
+  const now = Date.now();
+  const available: { id: string; label: string; tier: number; freeRPD: number }[] = [];
+  const rateLimited: { id: string; label: string; resumesIn: number }[] = [];
+  for (const model of GEMINI_MODELS) {
+    const limitedAt = rateLimitedModels[model.id];
+    if (limitedAt && now - limitedAt < RATE_LIMIT_COOLDOWN_MS) {
+      rateLimited.push({ id: model.id, label: model.label, resumesIn: Math.ceil((RATE_LIMIT_COOLDOWN_MS - (now - limitedAt)) / 1000) });
+    } else {
+      available.push({ id: model.id, label: model.label, tier: model.tier, freeRPD: model.freeRPD });
+    }
+  }
+  return {
+    available, rateLimited,
+    totalFreeRPD: available.reduce((sum, model) => sum + model.freeRPD, 0),
+  };
+}
+
+
+===== FILE: src/utils/services/scopeAi.ts =====
+import { callGeminiWithFallback } from './geminiModels';
+
+export async function polishScopeWithAI(
+  description: string,
+  apiKey?: string,
+): Promise<{ text: string; model?: string; tier?: number; fallback?: boolean }> {
+  if (!apiKey) return { text: description };
+
+  const prompt = [
+    'You are a senior Australian construction estimator writing a formal Scope of Works.',
+    'Rewrite the builder notes below into a complete, professionally structured Scope of Works using clear, plain Australian building terminology.',
+    'Output requirements: Start with a one-line summary heading.',
+    'Then 4-8 short sections, each with a bold header ending in ":".',
+    'Under each header, use short bullet points starting with "- ".',
+    'Reference relevant trades, AS standards and BCA where appropriate.',
+    'Do NOT invent dimensions or PC item dollar values.',
+    'Do NOT use markdown asterisks. Cover the full scope.',
+    `Builder notes: """${description}"""`,
+  ].join(' ');
+
+  try {
+    const result = await callGeminiWithFallback(prompt, apiKey);
+    return { text: result.text.trim(), model: result.model, tier: result.tier, fallback: result.fallback };
+  } catch {
+    return { text: description };
+  }
+}
+
+export async function recogniseScopeWithAI(
+  description: string,
+  categoryIds: string[],
+  apiKey?: string,
+): Promise<{ categoryId: string; model: string } | null> {
+  if (!apiKey) return null;
+
+  const prompt = [
+    'You are an Australian construction expert.',
+    `Given this description, identify the SINGLE most relevant category from: ${categoryIds.join(', ')}.`,
+    `Description: "${description}".`,
+    'Return ONLY the category ID.',
+  ].join(' ');
+
+  try {
+    const result = await callGeminiWithFallback(prompt, apiKey);
+    const cleaned = result.text.trim().toLowerCase().replace(/[^a-z-]/g, '');
+    if (categoryIds.includes(cleaned)) return { categoryId: cleaned, model: result.model };
+    const match = categoryIds.find((id) => cleaned.includes(id) || id.includes(cleaned));
+    return match ? { categoryId: match, model: result.model } : null;
+  } catch {
+    return null;
+  }
+}
+
+
+===== FILE: src/utils/tradeCategories.ts =====
+export interface TradeCategory {
+  id: string;
+  name: string;
+  unit: string;
+  defaultRate?: number;
+}
+
+export const tradeCategories: TradeCategory[] = [
+  { id: 'demolition_skip', name: 'Skip Bin Hire', unit: 'Item', defaultRate: 450 },
+  { id: 'concrete_slab', name: 'Concrete Slab (100mm)', unit: 'm²', defaultRate: 150 },
+  { id: 'brickwork_double', name: 'Brickwork (Double Skin)', unit: 'm²', defaultRate: 120 },
+  { id: 'carpentry_frame', name: 'Timber Framing', unit: 'm²', defaultRate: 85 },
+  { id: 'roofing_tiles', name: 'Tile Roofing', unit: 'm²', defaultRate: 95 },
+  { id: 'plumbing_rough', name: 'Plumbing Rough-in', unit: 'm²', defaultRate: 45 },
+  { id: 'electrical_rough', name: 'Electrical Rough-in', unit: 'm²', defaultRate: 55 },
+  { id: 'plasterboard', name: 'Plasterboard Supply & Fix', unit: 'm²', defaultRate: 35 },
+  { id: 'painting_internal', name: 'Internal Painting', unit: 'm²', defaultRate: 18 },
+  { id: 'flooring_timber', name: 'Timber Flooring', unit: 'm²', defaultRate: 65 },
+  { id: 'tiling_floor', name: 'Floor Tiling', unit: 'm²', defaultRate: 75 },
+  { id: 'kitchen_cabinets', name: 'Kitchen Cabinets', unit: 'm', defaultRate: 450 },
+  { id: 'bathroom_vanity', name: 'Bathroom Vanity', unit: 'Item', defaultRate: 800 },
+  { id: 'door_internal', name: 'Internal Door', unit: 'Item', defaultRate: 250 },
+  { id: 'window_alum', name: 'Aluminium Window', unit: 'm²', defaultRate: 350 },
+  { id: 'insulation_batch', name: 'Insulation Batts', unit: 'm²', defaultRate: 12 },
+  { id: 'concrete_footings', name: 'Concrete Footings', unit: 'm³', defaultRate: 220 },
+  { id: 'earthworks_cut', name: 'Earthworks (Cut)', unit: 'm³', defaultRate: 45 },
+  { id: 'earthworks_fill', name: 'Earthworks (Fill)', unit: 'm³', defaultRate: 35 },
+  { id: 'drainage_storm', name: 'Stormwater Drainage', unit: 'm', defaultRate: 85 },
+];
+
+
+===== FILE: src/utils/tradeTemplates.ts =====
+import { BoQItem } from '../types';
+
+interface TradeTemplate {
+  id: string;
+  items: BoQItem[];
+}
+
+const templates: Record<string, TradeTemplate> = {
+  demolition: {
+    id: 'demolition',
+    items: [
+      {
+        id: 'demo_1',
+        type: 'parametric',
+        categoryId: 'demolition_skip',
+        name: 'Skip Bin Hire',
+        unit: 'Item',
+        quantity: 1,
+        rate: 450,
+        isRateOverridden: false,
+      },
+      {
+        id: 'demo_2',
+        type: 'parametric',
+        categoryId: 'earthworks_cut',
+        name: 'Earthworks (Cut)',
+        unit: 'm³',
+        quantity: 10,
+        rate: 45,
+        isRateOverridden: false,
+      },
+    ],
+  },
+  concrete: {
+    id: 'concrete',
+    items: [
+      {
+        id: 'conc_1',
+        type: 'parametric',
+        categoryId: 'concrete_slab',
+        name: 'Concrete Slab (100mm)',
+        unit: 'm²',
+        quantity: 50,
+        rate: 150,
+        isRateOverridden: false,
+      },
+      {
+        id: 'conc_2',
+        type: 'parametric',
+        categoryId: 'concrete_footings',
+        name: 'Concrete Footings',
+        unit: 'm³',
+        quantity: 5,
+        rate: 220,
+        isRateOverridden: false,
+      },
+    ],
+  },
+};
+
+export const getTradeTemplate = (tradeId: string): TradeTemplate | undefined => {
+  // Simple mapping: if tradeId contains 'demolition', return demolition template, etc.
+  if (tradeId.includes('demolition')) return templates.demolition;
+  if (tradeId.includes('concrete')) return templates.concrete;
+  return undefined;
+};
+
+
+===== FILE: src/utils/trades/tradeDirectory.ts =====
+import { TRADE_RATE_DIRECTORY } from './tradeRateDirectory';
+import { getTradeCategoryId } from './tradeIds';
+
+export type TradeDirectoryItem = {
+  trade: string;
+  categoryId: string;
+  keywords: string[];
+  rate: number;
+  unit: string;
+  rateSource?: string;
+  rateConfidence?: string;
+  lastReviewed?: string;
+};
+
+export const TRADE_DIRECTORY: TradeDirectoryItem[] = TRADE_RATE_DIRECTORY.map((item) => ({
+  trade: item.trade,
+  categoryId: getTradeCategoryId(item.trade),
+  keywords: item.keywords,
+  rate: item.rate,
+  unit: item.unit,
+  rateSource: item.rateSource,
+  rateConfidence: item.rateConfidence,
+  lastReviewed: item.lastReviewed,
+}));
+
+
+===== FILE: src/utils/trades/tradeIds.ts =====
+export function getTradeCategoryId(trade: string): string {
+  return `trade${trade.replace(/[^a-zA-Z0-9]+/g, ' ').trim().split(' ').map(capitalise).join('')}`;
+}
+
+function capitalise(value: string): string {
+  if (!value) return '';
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+
+===== FILE: src/utils/trades/tradeRateDirectory.ts =====
+import { TRADE_RATES_A_TO_F } from './tradeRatesAtoF';
+import { TRADE_RATES_G_TO_M } from './tradeRatesGtoM';
+import { TRADE_RATES_N_TO_Z } from './tradeRatesNtoZ';
+import { DEFAULT_RATE_CONFIDENCE, DEFAULT_RATE_REVIEW_DATE, DEFAULT_RATE_SOURCE, type TradeRateItem } from './tradeRateTypes';
+
+export const TRADE_RATE_DIRECTORY: TradeRateItem[] = [
+  ...TRADE_RATES_A_TO_F,
+  ...TRADE_RATES_G_TO_M,
+  ...TRADE_RATES_N_TO_Z,
+].map((item) => ({
+  ...item,
+  rateSource: item.rateSource || DEFAULT_RATE_SOURCE,
+  rateConfidence: item.rateConfidence || DEFAULT_RATE_CONFIDENCE,
+  lastReviewed: item.lastReviewed || DEFAULT_RATE_REVIEW_DATE,
+})).sort((a, b) => a.trade.localeCompare(b.trade));
+
+
+===== FILE: src/utils/trades/tradeRateTypes.ts =====
+import type { UnitType } from '../categories/types';
+
+export type TradeRateItem = {
+  trade: string;
+  categoryId: string;
+  keywords: string[];
+  rate: number;
+  unit: UnitType;
+  duration: number;
+  description: string;
+  rateSource?: string;
+  rateConfidence?: 'benchmark_unverified' | 'verified' | 'quoted';
+  lastReviewed?: string;
+};
+
+export const DEFAULT_RATE_SOURCE = 'Benchmark default - not verified against current Victorian trade quotes';
+export const DEFAULT_RATE_CONFIDENCE: TradeRateItem['rateConfidence'] = 'benchmark_unverified';
+export const DEFAULT_RATE_REVIEW_DATE = '2026-04-29';
+
+
+===== FILE: src/utils/trades/tradeRatesAtoF.ts =====
+import type { TradeRateItem } from './tradeRateTypes';
+
+export const TRADE_RATES_A_TO_F: TradeRateItem[] = [
+  { trade: 'Arborist', categoryId: 'tradeArborist', keywords: ['arborist', 'tree removal', 'pruning'], rate: 1450, unit: 'allow', duration: 1, description: 'Tree works by qualified arborist' },
+  { trade: 'Asbestos Removalist', categoryId: 'tradeAsbestosRemoval', keywords: ['asbestos', 'hazmat', 'hazardous material'], rate: 2500, unit: 'allow', duration: 1, description: 'Licensed asbestos removal allowance' },
+  { trade: 'Bricklayer', categoryId: 'brickwork', keywords: ['bricklayer', 'brickwork', 'bricklaying'], rate: 220, unit: 'area', duration: 2, description: 'Bricklaying and masonry wall works' },
+  { trade: 'Cabinet Maker / Joiner', categoryId: 'cabinetry', keywords: ['cabinet maker', 'joiner', 'joinery'], rate: 350, unit: 'linear', duration: 3, description: 'Cabinetry and joinery works' },
+  { trade: 'Carpenter', categoryId: 'carpentry', keywords: ['carpenter', 'carpentry', 'fixing carpenter'], rate: 950, unit: 'allow', duration: 1, description: 'General carpentry labour allowance' },
+  { trade: 'Ceiling Fixer', categoryId: 'ceilings', keywords: ['ceiling fixer', 'ceiling', 'cornice'], rate: 85, unit: 'area', duration: 2, description: 'Ceiling framing, sheeting and cornice works' },
+  { trade: 'Cladder', categoryId: 'cladding', keywords: ['cladder', 'cladding', 'weatherboard'], rate: 120, unit: 'area', duration: 3, description: 'External cladding installation' },
+  { trade: 'Concreter', categoryId: 'concreting', keywords: ['concreter', 'concrete', 'slab'], rate: 110, unit: 'area', duration: 2, description: 'Concrete preparation, form and pour works' },
+  { trade: 'Data / Smart Home Technician', categoryId: 'smartHome', keywords: ['data technician', 'smart home', 'network'], rate: 850, unit: 'allow', duration: 1, description: 'Data, CCTV, intercom and smart device works' },
+  { trade: 'Demolition Contractor', categoryId: 'demolition', keywords: ['demolition contractor', 'demolisher', 'strip out'], rate: 150, unit: 'area', duration: 2, description: 'Demolition and strip-out works' },
+  { trade: 'Electrician', categoryId: 'electrical', keywords: ['electrician', 'electrical', 'sparky'], rate: 950, unit: 'allow', duration: 1, description: 'Electrical rough-in, fit-off and testing' },
+  { trade: 'Excavator / Earthmoving', categoryId: 'tradeExcavation', keywords: ['excavator', 'earthmoving', 'site cut'], rate: 1800, unit: 'allow', duration: 1, description: 'Excavation, earthmoving and spoil handling' },
+  { trade: 'Fencer', categoryId: 'fencing', keywords: ['fencer', 'fencing', 'gate'], rate: 120, unit: 'linear', duration: 2, description: 'Fence and gate construction' },
+  { trade: 'Fire Safety Technician', categoryId: 'fireSafety', keywords: ['fire safety technician', 'smoke alarm', 'fire door'], rate: 240, unit: 'item', duration: 1, description: 'Smoke alarm and fire safety compliance works' },
+  { trade: 'Floor Layer', categoryId: 'flooring', keywords: ['floor layer', 'flooring installer', 'carpet layer'], rate: 85, unit: 'area', duration: 2, description: 'Floor covering installation' },
+];
+
+
+===== FILE: src/utils/trades/tradeRatesGtoM.ts =====
+import type { TradeRateItem } from './tradeRateTypes';
+
+export const TRADE_RATES_G_TO_M: TradeRateItem[] = [
+  { trade: 'Garage Door Installer', categoryId: 'tradeGarageDoor', keywords: ['garage door', 'roller door', 'sectional door'], rate: 2200, unit: 'item', duration: 1, description: 'Supply and install garage door system' },
+  { trade: 'Gas Fitter', categoryId: 'plumbing', keywords: ['gas fitter', 'gas fitting', 'gas bayonet'], rate: 950, unit: 'allow', duration: 1, description: 'Gas fitting and appliance connection works' },
+  { trade: 'Glazier / Window Installer', categoryId: 'windowsDoors', keywords: ['glazier', 'glass', 'window installer'], rate: 850, unit: 'item', duration: 1, description: 'Glazing, windows and door installation' },
+  { trade: 'Gutter / Fascia Installer', categoryId: 'tradeGuttersFascia', keywords: ['gutter', 'fascia', 'downpipe'], rate: 95, unit: 'linear', duration: 2, description: 'Gutter, fascia and downpipe installation' },
+  { trade: 'HVAC Technician', categoryId: 'hvac', keywords: ['hvac technician', 'air conditioning', 'split system'], rate: 2800, unit: 'item', duration: 1, description: 'Heating, cooling and ventilation installation' },
+  { trade: 'Insulation Installer', categoryId: 'insulation', keywords: ['insulation installer', 'batts', 'thermal insulation'], rate: 35, unit: 'area', duration: 1, description: 'Bulk, acoustic or thermal insulation installation' },
+  { trade: 'Landscaper', categoryId: 'landscaping', keywords: ['landscaper', 'landscape', 'garden'], rate: 85, unit: 'area', duration: 3, description: 'Landscape preparation and installation' },
+  { trade: 'Locksmith', categoryId: 'tradeLocksmith', keywords: ['locksmith', 'locks', 'deadlock'], rate: 420, unit: 'allow', duration: 1, description: 'Door lock, latch and security hardware works' },
+];
+
+
+===== FILE: src/utils/trades/tradeRatesNtoZ.ts =====
+import type { TradeRateItem } from './tradeRateTypes';
+
+export const TRADE_RATES_N_TO_Z: TradeRateItem[] = [
+  { trade: 'Painter', categoryId: 'painting', keywords: ['painter', 'painting', 'paint'], rate: 65, unit: 'area', duration: 2, description: 'Paint preparation and coating works' },
+  { trade: 'Paver', categoryId: 'paving', keywords: ['paver', 'paving', 'driveway'], rate: 95, unit: 'area', duration: 2, description: 'Paving, driveway and hardscape works' },
+  { trade: 'Pest Controller', categoryId: 'tradePestControl', keywords: ['pest control', 'termite', 'borer'], rate: 650, unit: 'allow', duration: 1, description: 'Pest inspection and treatment allowance' },
+  { trade: 'Plasterer', categoryId: 'plastering', keywords: ['plasterer', 'plastering', 'plasterboard'], rate: 85, unit: 'area', duration: 2, description: 'Plasterboard sheeting, setting and repair' },
+  { trade: 'Plumber', categoryId: 'plumbing', keywords: ['plumber', 'plumbing', 'drainage'], rate: 950, unit: 'allow', duration: 1, description: 'Plumbing rough-in, fit-off and compliance' },
+  { trade: 'Pool Contractor', categoryId: 'pools', keywords: ['pool contractor', 'pool builder', 'spa'], rate: 30000, unit: 'allow', duration: 5, description: 'Pool shell, equipment and finish works' },
+  { trade: 'Renderer', categoryId: 'rendering', keywords: ['renderer', 'rendering', 'texture coat'], rate: 85, unit: 'area', duration: 2, description: 'Render preparation and application' },
+  { trade: 'Roofer', categoryId: 'roofing', keywords: ['roofer', 'roofing', 'colorbond'], rate: 120, unit: 'area', duration: 3, description: 'Roofing installation and flashings' },
+  { trade: 'Scaffolder', categoryId: 'tradeScaffolding', keywords: ['scaffolder', 'scaffold', 'edge protection'], rate: 2800, unit: 'allow', duration: 1, description: 'Scaffold and roof edge protection allowance' },
+  { trade: 'Security Technician', categoryId: 'smartHome', keywords: ['security technician', 'alarm', 'cctv'], rate: 850, unit: 'allow', duration: 1, description: 'Security, CCTV and alarm works' },
+  { trade: 'Solar Installer', categoryId: 'tradeSolar', keywords: ['solar installer', 'solar panels', 'inverter'], rate: 6500, unit: 'allow', duration: 2, description: 'Solar PV installation allowance' },
+  { trade: 'Stonemason', categoryId: 'tradeStonemasonry', keywords: ['stonemason', 'stone masonry', 'stonework'], rate: 280, unit: 'area', duration: 3, description: 'Stonework and masonry installation' },
+  { trade: 'Steel Fabricator / Framer', categoryId: 'steelFraming', keywords: ['steel fabricator', 'steel frame', 'steel beam'], rate: 3500, unit: 'item', duration: 2, description: 'Steel fabrication and installation' },
+  { trade: 'Structural Contractor', categoryId: 'structural', keywords: ['structural contractor', 'structural works', 'beam install'], rate: 4500, unit: 'item', duration: 2, description: 'Structural modification and installation works' },
+  { trade: 'Tiler', categoryId: 'tiling', keywords: ['tiler', 'tiling', 'tile'], rate: 145, unit: 'area', duration: 2, description: 'Tile installation and grouting works' },
+  { trade: 'Underpinner / Restumper', categoryId: 'underpinning', keywords: ['underpinner', 'restumper', 'underpinning'], rate: 450, unit: 'linear', duration: 5, description: 'Underpinning, restumping and re-levelling works' },
+  { trade: 'Waterproofer', categoryId: 'waterproofing', keywords: ['waterproofer', 'waterproofing', 'membrane'], rate: 55, unit: 'area', duration: 1, description: 'AS3740 waterproofing membrane works' },
+];
+
+
+===== FILE: src/utils/validation/estimatorValidation.ts =====
+import type { ProjectBaseline, QuoteScope } from '../../types/domain';
+import { getEstimatorReviewFlags } from '../estimatorReview';
+import { calculateQuote } from '../pricing/quoteCalculator';
+import { getTradeChainSuggestions } from '../pricing/tradeChain';
+import { getAllParametricUnits } from '../pricing/parametricUnits';
+import { TRADE_RATE_DIRECTORY } from '../trades/tradeRateDirectory';
+import { getAnswerPricingAdjustment } from '../../components/variationBuilder/answerPricing';
+import { deriveScopeDimensions, syncScopePricing } from '../../components/variationBuilder/scopePricing';
+
+export type ValidationResult = {
+  name: string;
+  passed: boolean;
+  details: string;
+};
+
+export function runEstimatorValidation(): ValidationResult[] {
+  return [
+    validateQuoteMath(),
+    validateDimensionPropagation(),
+    validateTradeChainSuggestions(),
+    validateRateProvenance(),
+    validateEstimatorFlags(),
+    validateAnswerPricing(),
+  ];
+}
+
+function validateQuoteMath(): ValidationResult {
+  const pricing = calculateQuote(1000, 10, 20, 5);
+  return {
+    name: 'Quote math includes overhead, margin, contingency and GST',
+    passed: pricing.total === 1525 && pricing.gstAmount === 139,
+    details: `Expected total 1525 and GST 139, received total ${pricing.total} and GST ${pricing.gstAmount}.`,
+  };
+}
+
+function validateDimensionPropagation(): ValidationResult {
+  const baseline: ProjectBaseline = { totalAreaM2: 25, storeys: 'single', siteAccess: 'easy', ceilingHeightM: 2.7 };
+  const dimensions = deriveScopeDimensions('painting', baseline);
+  return {
+    name: 'Project baseline propagates into scope dimensions',
+    passed: dimensions.width === 25 && dimensions.length === 1 && dimensions.height === 2.7,
+    details: `Painting dimensions resolved to ${dimensions.width} x ${dimensions.length} x ${dimensions.height}.`,
+  };
+}
+
+function validateTradeChainSuggestions(): ValidationResult {
+  const suggestions = getTradeChainSuggestions('plumbing', ['plumbing']);
+  const ids = suggestions.map((suggestion) => suggestion.categoryId);
+  return {
+    name: 'Trade-chain suggestions identify related trades',
+    passed: ids.includes('waterproofing') && ids.includes('electrical'),
+    details: `Plumbing suggestions: ${ids.join(', ') || 'none'}.`,
+  };
+}
+
+function validateRateProvenance(): ValidationResult {
+  const missingUnitMetadata = getAllParametricUnits().filter((unit) => !unit.rateConfidence || !unit.rateSource);
+  const missingTradeMetadata = TRADE_RATE_DIRECTORY.filter((trade) => !trade.rateConfidence || !trade.rateSource);
+  return {
+    name: 'Rates carry provenance metadata',
+    passed: missingUnitMetadata.length === 0 && missingTradeMetadata.length === 0,
+    details: `${missingUnitMetadata.length} unit rates and ${missingTradeMetadata.length} trade rates missing metadata.`,
+  };
+}
+
+function validateEstimatorFlags(): ValidationResult {
+  const pricing = calculateQuote(0, 10, 10, 10);
+  const flags = getEstimatorReviewFlags([], pricing);
+  return {
+    name: 'Estimator flags catch empty/zero documents',
+    passed: flags.some((flag) => flag.id === 'no-scopes') && flags.some((flag) => flag.id === 'zero-total'),
+    details: `Generated flags: ${flags.map((flag) => flag.id).join(', ')}.`,
+  };
+}
+
+function validateAnswerPricing(): ValidationResult {
+  const scope: QuoteScope = {
+    id: 'test',
+    categoryId: 'painting',
+    categoryLabel: 'Painting',
+    description: 'Painting works',
+    stages: [],
+    dimensions: { width: 0, length: 0, height: 2.4 },
+    answers: {},
+    questionAnswers: [{ questionId: 'prep', answer: 'Full prep & patching' }],
+    pcItems: [],
+    inclusions: [],
+    exclusions: [],
+  };
+  const adjustment = getAnswerPricingAdjustment(scope);
+  const priced = syncScopePricing(scope, { totalAreaM2: 20, storeys: 'single', siteAccess: 'easy', ceilingHeightM: 2.4 });
+  return {
+    name: 'Category answers influence pricing',
+    passed: adjustment.multiplier > 1 && priced.stages.some((stage) => stage.rateOverrideNote),
+    details: `Answer multiplier ${adjustment.multiplier}; priced stages ${priced.stages.length}.`,
+  };
+}
+
+
+===== FILE: src/utils/validation/index.ts =====
+export { runEstimatorValidation, type ValidationResult } from './estimatorValidation';
+export { getRateAuditSummary, hasUnverifiedRates, type RateAuditSummary } from './rateAudit';
+
+
+===== FILE: src/utils/validation/rateAudit.ts =====
+import { getAllParametricUnits } from '../pricing/parametricUnits';
+import { TRADE_RATE_DIRECTORY } from '../trades/tradeRateDirectory';
+
+export type RateAuditSummary = {
+  totalTradeRates: number;
+  totalUnitRates: number;
+  unverifiedTradeRates: number;
+  unverifiedUnitRates: number;
+};
+
+export function getRateAuditSummary(): RateAuditSummary {
+  const tradeRates = TRADE_RATE_DIRECTORY;
+  const unitRates = getAllParametricUnits();
+  return {
+    totalTradeRates: tradeRates.length,
+    totalUnitRates: unitRates.length,
+    unverifiedTradeRates: tradeRates.filter((item) => item.rateConfidence === 'benchmark_unverified').length,
+    unverifiedUnitRates: unitRates.filter((item) => item.rateConfidence === 'benchmark_unverified').length,
+  };
+}
+
+export function hasUnverifiedRates(): boolean {
+  const summary = getRateAuditSummary();
+  return summary.unverifiedTradeRates > 0 || summary.unverifiedUnitRates > 0;
+}
+
+
+===== FILE: tsconfig.json =====
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "types": ["node"],
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* Path mapping */
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src", "vite.config.ts"]
+}
+
+
+===== FILE: vite.config.ts =====
+import path from "path";
+import { fileURLToPath } from "url";
+import tailwindcss from "@tailwindcss/vite";
+import react from "@vitejs/plugin-react";
+import { defineConfig } from "vite";
+import { viteSingleFile } from "vite-plugin-singlefile";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// https://vite.dev/config/
+export default defineConfig({
+  plugins: [react(), tailwindcss(), viteSingleFile()],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "src"),
+    },
+  },
+});

@@ -1,0 +1,1797 @@
+
+===== FILE: firebase.json =====
+{
+  "hosting": {
+    "public": "dist",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store, no-cache, must-revalidate"
+          }
+        ]
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
+
+
+===== FILE: index.html =====
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <title>Segal Build – Construction Quoting</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
+
+===== FILE: package.json =====
+{
+  "name": "react-vite-tailwind",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "clsx": "2.1.1",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.7",
+    "lucide-react": "^1.8.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "tailwind-merge": "3.4.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.1.17",
+    "@types/node": "22.19.17",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "5.1.1",
+    "tailwindcss": "4.1.17",
+    "typescript": "5.9.3",
+    "vite": "7.2.4",
+    "vite-plugin-singlefile": "2.3.0"
+  }
+}
+
+
+===== FILE: src/App.tsx =====
+import { LoadingSpinner } from './components/LoadingSpinner';
+import { usePersistedAppState } from './logic/state';
+import { AppLayout } from './app/AppLayout';
+import { useAppActions } from './app/useAppActions';
+
+export default function App() {
+  const { state, setState } = usePersistedAppState();
+  const app = useAppActions(state, setState);
+
+  if (!state) return <div className="min-h-screen flex items-center justify-center"><LoadingSpinner size="lg" /></div>;
+
+  return <AppLayout state={state} app={app} />;
+}
+
+
+===== FILE: src/app/AppLayout.tsx =====
+import { ExternalQuoteModal } from '../components/ExternalQuoteModal';
+import { ProjectForm } from '../components/ProjectForm';
+import { SendWelcomeEmailModal } from '../components/SendWelcomeEmailModal';
+import { Sidebar } from '../components/Sidebar';
+import { VariationBuilder } from '../components/VariationBuilder';
+import type { AppState } from '../types/appState';
+import type { AppActions } from './useAppActions';
+import { MainContent } from './MainContent';
+
+type Props = { state: AppState; app: AppActions };
+
+export function AppLayout({ state, app }: Props) {
+  return (
+    <div className="flex h-screen bg-slate-50">
+      <Sidebar state={state} app={app} />
+      <MainContent state={state} app={app} />
+
+      {state.uiState.showProjectForm && (
+        <ProjectForm
+          onClose={app.closeProjectForm}
+          onSubmit={app.handleCreateProject}
+        />
+      )}
+
+      {state.uiState.showWelcomeEmail && app.activeProject && (
+        <SendWelcomeEmailModal
+          project={app.activeProject}
+          company={app.activeCompany}
+          onClose={app.closeWelcomeEmail}
+        />
+      )}
+
+      {app.showBuilder && app.activeProject && (
+        <VariationBuilder
+          project={app.activeProject}
+          company={app.activeCompany}
+          documentType={app.builderDocType}
+          approvedQuotes={app.variations.filter(v => v.documentType === 'quote' && v.status === 'approved')}
+          onSave={app.handleSaveVariation}
+          onClose={() => app.setShowBuilder(false)}
+        />
+      )}
+
+      {app.showExternalBaselineModal && (
+        <ExternalQuoteModal
+          onClose={() => app.setShowExternalBaselineModal(false)}
+          onSubmit={app.handleSaveExternalBaseline}
+        />
+      )}
+    </div>
+  );
+}
+
+
+===== FILE: src/app/MainContent.tsx =====
+import { ProjectChat } from '../components/ProjectChat';
+import { VariationReport } from '../components/report/VariationReport';
+import { WelcomeScreen } from '../components/WelcomeScreen';
+import { hasApprovedQuote } from '../logic/state';
+import type { AppState } from '../types/appState';
+import type { AppActions } from './useAppActions';
+
+type Props = { state: AppState; app: AppActions };
+
+export function MainContent({ state, app }: Props) {
+  const { activeProject, activeCompany, variations } = app;
+
+  return (
+    <div className="flex-1 overflow-y-auto">
+      {!activeProject && state.uiState.view === 'welcome' && <WelcomeScreen company={activeCompany} onNewProject={app.handleNewProject} />}
+      {activeProject && (
+        <div className="max-w-6xl mx-auto p-6 space-y-6">
+          <ProjectHeader state={state} app={app} />
+          {variations.length > 0 ? <Documents app={app} /> : <EmptyDocuments onNewQuote={app.handleNewQuote} />}
+          <ProjectChat project={activeProject} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProjectHeader({ state, app }: Props) {
+  const project = app.activeProject!;
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      {project.heroPhoto && <Hero project={project} count={app.variations.length} />}
+      <div className={`p-6 ${project.heroPhoto ? 'pt-4' : ''}`}>
+        <div className="flex items-start justify-between">
+          <div>
+            {!project.heroPhoto && <h1 className="text-2xl font-bold text-slate-900">{project.name}</h1>}
+            {!project.heroPhoto && <p className="text-sm text-slate-500 mt-1">{project.address}</p>}
+            <p className="text-sm text-slate-500">Customer: {project.customer.name} ({project.customer.email}){project.customer.phone && ` | ${project.customer.phone}`}</p>
+          </div>
+          <div className="text-right">
+            {!project.heroPhoto && <div className="text-sm text-slate-500">{app.variations.length} document(s)</div>}
+            {hasApprovedQuote(state, project.id) && <span className="inline-block mt-1 px-2 py-1 bg-emerald-100 text-emerald-800 text-xs font-medium rounded-full">Quote Approved</span>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Hero({ project, count }: { project: AppActions['activeProject']; count: number }) {
+  if (!project?.heroPhoto) return null;
+  return (
+    <div className="relative h-48 w-full">
+      <img src={project.heroPhoto} alt={project.name} className="w-full h-full object-cover" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+      <div className="absolute bottom-4 left-6 right-6">
+        <h1 className="text-2xl font-bold text-white drop-shadow-lg">{project.name}</h1>
+        <p className="text-sm text-white/80 mt-1">{project.address}</p>
+      </div>
+      <div className="absolute top-4 right-6"><div className="bg-white/90 backdrop-blur-sm rounded-lg px-3 py-1.5 text-sm font-medium text-slate-700">{count} document(s)</div></div>
+    </div>
+  );
+}
+
+function Documents({ app }: { app: AppActions }) {
+  return (
+    <div className="space-y-4">
+      <h2 className="text-lg font-semibold text-slate-900">Documents</h2>
+      {app.variations.map((variation) => (
+        <VariationReport key={variation.id} variation={variation} project={app.activeProject!} company={app.activeCompany} onUpdate={app.handleUpdateVariation} />
+      ))}
+    </div>
+  );
+}
+
+function EmptyDocuments({ onNewQuote }: { onNewQuote: () => void }) {
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-12 text-center">
+      <div className="text-6xl mb-4">📋</div>
+      <h2 className="text-xl font-semibold text-slate-900 mb-2">No documents yet</h2>
+      <p className="text-slate-500 mb-4">Create your first quote to get started, then issue variations as needed.</p>
+      <button onClick={onNewQuote} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-medium transition-colors">Create First Quote</button>
+    </div>
+  );
+}
+
+
+===== FILE: src/app/useAppActions.ts =====
+import { useCallback, useState } from 'react';
+import { getCompanyById } from '../constants/companies';
+import { createProject, createVariation, deleteProject, hasApprovedQuote, selectProject, updateVariation } from '../logic/state';
+import type { AppState } from '../types/appState';
+import type { ExternalQuoteReference, Project, Variation } from '../types/domain';
+import { downloadProjectExport, generateId } from '../utils/helpers';
+import { calculateQuote } from '../utils/pricing/quoteCalculator';
+
+export type AppActions = ReturnType<typeof useAppActions>;
+
+export function useAppActions(state: AppState, setState: (fn: (state: AppState) => AppState) => void) {
+  const [showBuilder, setShowBuilder] = useState(false);
+  const [showExternalBaselineModal, setShowExternalBaselineModal] = useState(false);
+  const [builderDocType, setBuilderDocType] = useState<'quote' | 'variation'>('quote');
+
+  const activeProject = state.projects.find((project) => project.id === state.activeProjectId);
+  const activeCompany = getCompanyById(state.activeCompanyId);
+  const variations = state.activeProjectId ? (state.variations[state.activeProjectId] || []) : [];
+
+  const handleNewProject = useCallback(() => {
+    setState((prev) => ({ ...prev, uiState: { ...prev.uiState, showProjectForm: true } }));
+  }, [setState]);
+
+  const handleCreateProject = useCallback((data: { name: string; address: string; customerName: string; customerEmail: string; customerPhone: string; heroPhoto?: string }) => {
+    const project: Project = {
+      id: generateId(),
+      name: data.name,
+      address: data.address,
+      customer: { name: data.customerName, email: data.customerEmail, phone: data.customerPhone },
+      companyId: state.activeCompanyId,
+      createdAt: new Date().toISOString(),
+      heroPhoto: data.heroPhoto,
+    };
+    setState((prev) => createProject(prev, project));
+  }, [setState, state.activeCompanyId]);
+
+  const handleSelectProject = useCallback((id: string) => setState((prev) => selectProject(prev, id)), [setState]);
+
+  const handleDeleteProject = useCallback((id: string) => {
+    if (!confirm('Delete this project and all its data? This cannot be undone.')) return;
+    setState((prev) => deleteProject(prev, id));
+  }, [setState]);
+
+  const handleExportProject = useCallback((id: string) => {
+    const project = state.projects.find((item) => item.id === id);
+    if (!project) return;
+    downloadProjectExport({
+      projectName: project.name,
+      address: project.address,
+      customer: project.customer,
+      variations: state.variations[id] || [],
+      exportedAt: new Date().toISOString(),
+    });
+  }, [state.projects, state.variations]);
+
+  const handleSaveVariation = useCallback((variation: Variation) => {
+    if (!state.activeProjectId) return;
+    setState((prev) => createVariation(prev, state.activeProjectId!, variation));
+    setShowBuilder(false);
+  }, [setState, state.activeProjectId]);
+
+  const handleUpdateVariation = useCallback((variation: Variation) => {
+    if (!state.activeProjectId) return;
+    setState((prev) => updateVariation(prev, state.activeProjectId!, variation));
+  }, [setState, state.activeProjectId]);
+
+  const handleNewQuote = useCallback(() => {
+    setBuilderDocType('quote');
+    setShowBuilder(true);
+  }, []);
+
+  const handleNewVariation = useCallback(() => {
+    if (!activeProject) return;
+    if (!hasApprovedQuote(state, activeProject.id)) {
+      setShowExternalBaselineModal(true);
+      return;
+    }
+    setBuilderDocType('variation');
+    setShowBuilder(true);
+  }, [activeProject, state]);
+
+  const closeProjectForm = () => setState((prev) => ({ ...prev, uiState: { ...prev.uiState, showProjectForm: false } }));
+  const closeWelcomeEmail = () => setState((prev) => ({ ...prev, uiState: { ...prev.uiState, showWelcomeEmail: false } }));
+
+  return {
+    activeProject,
+    activeCompany,
+    variations,
+    showBuilder,
+    setShowBuilder,
+    showExternalBaselineModal,
+    setShowExternalBaselineModal,
+    builderDocType,
+    handleNewProject,
+    handleCreateProject,
+    handleSelectProject,
+    handleDeleteProject,
+    handleExportProject,
+    handleSaveVariation,
+    handleUpdateVariation,
+    handleNewQuote,
+    handleNewVariation,
+    closeProjectForm,
+    closeWelcomeEmail,
+    handleSaveExternalBaseline: createExternalBaselineHandler({
+      state,
+      activeProject,
+      activeCompany,
+      setState,
+      setShowExternalBaselineModal,
+      setBuilderDocType,
+      setShowBuilder,
+    }),
+    handleBackToWelcome: () => setState((prev) => ({
+      ...prev,
+      uiState: { ...prev.uiState, view: 'welcome', showProjectForm: false, showWelcomeEmail: false },
+      activeProjectId: null,
+    })),
+    handleSwitchCompany: (id: string) => setState((prev) => ({ ...prev, activeCompanyId: id })),
+  };
+}
+
+function createExternalBaselineHandler(args: {
+  state: AppState;
+  activeProject: Project | undefined;
+  activeCompany: ReturnType<typeof getCompanyById>;
+  setState: (fn: (state: AppState) => AppState) => void;
+  setShowExternalBaselineModal: (value: boolean) => void;
+  setBuilderDocType: (value: 'quote' | 'variation') => void;
+  setShowBuilder: (value: boolean) => void;
+}) {
+  return (payload: ExternalQuoteReference) => {
+    if (!args.state.activeProjectId || !args.activeProject) return;
+    const now = new Date().toISOString();
+    const baseline: Variation = {
+      id: generateId(),
+      title: `External Quote Baseline - ${payload.referenceNumber}`,
+      description: payload.summaryScope,
+      status: 'approved',
+      documentType: 'quote',
+      source: 'external',
+      externalQuoteRef: payload,
+      scopes: [],
+      pricing: calculateQuote(payload.originalApprovedAmount, args.activeCompany.defaultOverheadPercent, args.activeCompany.defaultProfitPercent, 0),
+      changeLog: [{
+        id: generateId(),
+        action: 'external-baseline-linked',
+        timestamp: now,
+        user: 'Builder',
+        details: `Linked external quote ${payload.referenceNumber}`,
+      }],
+      createdAt: now,
+      updatedAt: now,
+      internalNotes: payload.notes ? [payload.notes] : [],
+    };
+    args.setState((prev) => createVariation(prev, args.state.activeProjectId!, baseline));
+    args.setShowExternalBaselineModal(false);
+    args.setBuilderDocType('variation');
+    args.setShowBuilder(true);
+  };
+}
+
+
+===== FILE: src/components/ExternalQuoteModal.tsx =====
+import { useState } from 'react';
+import { X } from 'lucide-react';
+import type { ExternalQuoteReference } from '../types/domain';
+
+type Props = {
+  onClose: () => void;
+  onSubmit: (payload: ExternalQuoteReference) => void;
+};
+
+export function ExternalQuoteModal({ onClose, onSubmit }: Props) {
+  const [referenceNumber, setReferenceNumber] = useState('');
+  const [provider, setProvider] = useState('');
+  const [originalAmount, setOriginalAmount] = useState(0);
+  const [summaryScope, setSummaryScope] = useState('');
+  const [notes, setNotes] = useState('');
+
+  const handleSubmit = () => {
+    if (!referenceNumber.trim() || !provider.trim() || originalAmount <= 0) return;
+    onSubmit({
+      referenceNumber: referenceNumber.trim(),
+      provider: provider.trim(),
+      originalApprovedAmount: originalAmount,
+      summaryScope: summaryScope.trim() || 'External quote — see reference',
+      notes: notes.trim() || undefined,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-200 p-6">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">Link External Quote</h2>
+            <p className="text-sm text-slate-500 mt-1">Use this if the original quote was from another builder.</p>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-2 hover:bg-slate-100"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="text-sm font-medium text-slate-700">Reference Number</label>
+            <input value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)} placeholder="e.g. QB-2024-001" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700">Provider / Builder</label>
+            <input value={provider} onChange={(e) => setProvider(e.target.value)} placeholder="e.g. ABC Constructions" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700">Original Approved Amount (excl. GST)</label>
+            <input type="number" value={originalAmount || ''} onChange={(e) => setOriginalAmount(Number(e.target.value))} placeholder="0" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700">Summary Scope</label>
+            <textarea value={summaryScope} onChange={(e) => setSummaryScope(e.target.value)} rows={3} placeholder="Brief description of works covered by the original quote…" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700">Notes (optional)</label>
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Any additional context…" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          </div>
+        </div>
+        <div className="flex justify-end gap-3 border-t border-slate-200 p-4">
+          <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">Cancel</button>
+          <button onClick={handleSubmit} disabled={!referenceNumber.trim() || !provider.trim() || originalAmount <= 0} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">Link Baseline</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+===== FILE: src/components/LoadingSpinner.tsx =====
+import { cn } from '../utils/helpers';
+
+export function LoadingSpinner({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
+  const sizeClass = {
+    sm: 'w-4 h-4',
+    md: 'w-8 h-8',
+    lg: 'w-12 h-12',
+  }[size];
+
+  return (
+    <div className={cn('animate-spin rounded-full border-2 border-slate-200 border-t-blue-600', sizeClass)} />
+  );
+}
+
+
+===== FILE: src/components/PhotoCapture.tsx =====
+import { useState, useRef } from 'react';
+import { Camera, Upload, X, Loader2 } from 'lucide-react';
+import { uploadPhotoToCloudinary, isCloudinaryConfigured } from '../utils/services';
+
+type Props = {
+  label?: string;
+  value?: string;
+  onChange: (url: string | undefined) => void;
+  className?: string;
+};
+
+export function PhotoCapture({ label = 'Photo', value, onChange, className = '' }: Props) {
+  const [loading, setLoading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+
+  const processFile = async (file: File) => {
+    setLoading(true);
+    try {
+      if (isCloudinaryConfigured()) {
+        try {
+          const cloudUrl = await uploadPhotoToCloudinary(file);
+          if (cloudUrl && cloudUrl.startsWith('blob:')) {
+            const dataUrl = await compressImage(file, 800, 0.7);
+            onChange(dataUrl);
+          } else {
+            onChange(cloudUrl);
+          }
+        } catch {
+          const dataUrl = await compressImage(file, 800, 0.7);
+          onChange(dataUrl);
+        }
+      } else {
+        const dataUrl = await compressImage(file, 800, 0.7);
+        onChange(dataUrl);
+      }
+    } catch {
+      alert('Failed to process image. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processFile(file);
+    e.target.value = '';
+  };
+
+  return (
+    <div className={className}>
+      <label className="block text-sm font-medium text-slate-700 mb-2">{label}</label>
+
+      {value ? (
+        <div className="relative rounded-xl overflow-hidden border border-slate-200">
+          <img src={value} alt="Preview" className="w-full h-48 object-cover" />
+          <button
+            type="button"
+            onClick={() => onChange(undefined)}
+            className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full shadow-lg transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      ) : (
+        <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center bg-slate-50">
+          {loading ? (
+            <div className="flex flex-col items-center gap-2">
+              <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+              <p className="text-sm text-slate-500">Processing photo...</p>
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-col items-center gap-3">
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => fileRef.current?.click()}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors text-sm"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Upload Photo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => cameraRef.current?.click()}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors text-sm"
+                  >
+                    <Camera className="w-4 h-4" />
+                    Take Photo
+                  </button>
+                </div>
+                <p className="text-xs text-slate-400">JPG, PNG up to 5MB</p>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileChange} />
+    </div>
+  );
+}
+
+function compressImage(file: File, maxSize: number, quality: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let { width, height } = img;
+        if (width > maxSize || height > maxSize) {
+          const ratio = Math.min(maxSize / width, maxSize / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject(new Error('Canvas error'));
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = reader.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+
+===== FILE: src/components/ProgressHub.tsx =====
+import { useState } from 'react';
+import type { Variation } from '../types/domain';
+import { PhotoCapture } from './PhotoCapture';
+
+type Props = {
+  variation: Variation;
+  onUpdate: (variation: Variation) => void;
+};
+
+export function ProgressHub({ variation, onUpdate }: Props) {
+  const [photos, setPhotos] = useState<string[]>(variation.progressPhotos ? variation.progressPhotos.map(p => p.url) : []);
+  const [updateText, setUpdateText] = useState('');
+
+  const handleAddPhoto = (url: string | undefined) => {
+    if (!url) return;
+    const nextUrls = [...photos, url];
+    setPhotos(nextUrls);
+    const nextPhotos = [
+      ...(variation.progressPhotos || []),
+      { id: crypto.randomUUID(), url, caption: 'Progress', stage: 'General', date: new Date().toISOString() }
+    ];
+    onUpdate({ ...variation, progressPhotos: nextPhotos, updatedAt: new Date().toISOString() });
+  };
+
+  const handleAddUpdate = () => {
+    if (!updateText.trim()) return;
+    const now = new Date().toISOString();
+    onUpdate({
+      ...variation,
+      updatedAt: now,
+      progressUpdates: [...(variation.progressUpdates || []), { text: updateText.trim(), timestamp: now }],
+      changeLog: [
+        ...variation.changeLog,
+        { id: crypto.randomUUID(), action: 'progress-update', timestamp: now, user: 'Builder', details: updateText.trim() },
+      ],
+    });
+    setUpdateText('');
+  };
+
+  return (
+    <div className="space-y-4">
+      <h4 className="text-sm font-semibold text-slate-700">Progress Photos</h4>
+      {photos.length > 0 && (
+        <div className="grid grid-cols-3 gap-2">
+          {photos.map((photo, i) => (
+            <img key={i} src={photo} alt={`Progress ${i + 1}`} className="w-full h-32 object-cover rounded-lg" />
+          ))}
+        </div>
+      )}
+      <PhotoCapture label="Add Progress Photo" value={undefined} onChange={handleAddPhoto} />
+      <div>
+        <h4 className="text-sm font-semibold text-slate-700 mb-2">Progress Updates</h4>
+        {variation.progressUpdates && variation.progressUpdates.length > 0 && (
+          <div className="space-y-2 mb-3">
+            {variation.progressUpdates.map((update, i) => (
+              <div key={i} className="rounded-lg bg-slate-50 p-3 text-sm">
+                <p className="text-slate-700">{update.text}</p>
+                <p className="text-xs text-slate-400 mt-1">{new Date(update.timestamp).toLocaleDateString()}</p>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <input value={updateText} onChange={(e) => setUpdateText(e.target.value)} placeholder="Add progress update…" className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          <button onClick={handleAddUpdate} disabled={!updateText.trim()} className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">Add</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+===== FILE: src/components/ProjectChat.tsx =====
+import { useState } from 'react';
+import { Send, User } from 'lucide-react';
+import type { Project } from '../types/domain';
+
+type Props = { project: Project };
+
+export function ProjectChat({ project }: Props) {
+  const [activeTab, setActiveTab] = useState<'notes' | 'contact'>('notes');
+  const [notes, setNotes] = useState('');
+  const [message, setMessage] = useState('');
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+      <div className="flex border-b border-slate-200">
+        <button onClick={() => setActiveTab('notes')} className={`flex-1 py-3 text-sm font-medium ${activeTab === 'notes' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500'}`}>Internal Notes</button>
+        <button onClick={() => setActiveTab('contact')} className={`flex-1 py-3 text-sm font-medium ${activeTab === 'contact' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500'}`}>Contact Customer</button>
+      </div>
+      <div className="p-4">
+        {activeTab === 'notes' ? (
+          <div className="space-y-3">
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Add internal notes about this project..."
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm min-h-[120px] focus:ring-2 focus:ring-blue-500 outline-none" />
+            <button className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">Save Note</button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
+              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center"><User className="w-5 h-5 text-blue-600" /></div>
+              <div><p className="font-medium text-sm">{project.customer.name}</p><p className="text-xs text-slate-500">{project.customer.email}</p></div>
+            </div>
+            <div className="space-y-2">
+              <textarea value={message} onChange={e => setMessage(e.target.value)} placeholder="Type message to customer..."
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm min-h-[100px] focus:ring-2 focus:ring-blue-500 outline-none" />
+              <div className="flex gap-2">
+                <button className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center gap-1"><Send className="w-3 h-3" /> Send Email</button>
+                <button className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700">Send WhatsApp</button>
+                <button className="bg-slate-100 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-200">Send SMS</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+===== FILE: src/components/ProjectForm.tsx =====
+import { useState } from 'react';
+import { X } from 'lucide-react';
+import { PhotoCapture } from './PhotoCapture';
+
+type Props = {
+  onSubmit: (data: { name: string; address: string; customerName: string; customerEmail: string; customerPhone: string; heroPhoto?: string }) => void;
+  onClose: () => void;
+};
+
+export function ProjectForm({ onSubmit, onClose }: Props) {
+  const [name, setName] = useState('');
+  const [address, setAddress] = useState('');
+  const [customerName, setCustomerName] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [heroPhoto, setHeroPhoto] = useState<string | undefined>();
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !address.trim() || !customerName.trim() || !customerEmail.trim()) return;
+    onSubmit({ name: name.trim(), address: address.trim(), customerName: customerName.trim(), customerEmail: customerEmail.trim(), customerPhone: customerPhone.trim(), heroPhoto });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <form onSubmit={handleSubmit} className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-200 p-6">
+          <h2 className="text-xl font-bold text-slate-900">New Project</h2>
+          <button type="button" onClick={onClose} className="rounded-lg p-2 hover:bg-slate-100"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="text-sm font-medium text-slate-700">Project Name</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Smith Renovation" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" required />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700">Address</label>
+            <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="e.g. 123 Main St, Melbourne VIC 3000" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" required />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium text-slate-700">Customer Name</label>
+              <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="e.g. John Smith" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" required />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-slate-700">Phone</label>
+              <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="e.g. 0412 345 678" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700">Email</label>
+            <input type="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} placeholder="e.g. john@example.com" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" required />
+          </div>
+          <PhotoCapture label="Hero Photo (optional)" value={heroPhoto} onChange={setHeroPhoto} />
+        </div>
+        <div className="flex justify-end gap-3 border-t border-slate-200 p-4">
+          <button type="button" onClick={onClose} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">Cancel</button>
+          <button type="submit" disabled={!name.trim() || !address.trim() || !customerName.trim() || !customerEmail.trim()} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">Create Project</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+
+===== FILE: src/components/SendWelcomeEmailModal.tsx =====
+import { useState } from 'react';
+import { X, Copy, Mail, MessageSquare, Send } from 'lucide-react';
+import type { Company, Project } from '../types/domain';
+import { buildWelcomeMessage, type MessageType } from './welcomeMessages';
+
+type Props = { project: Project; company: Company; onClose: () => void };
+
+export function SendWelcomeEmailModal({ project, company, onClose }: Props) {
+  const [copied, setCopied] = useState(false);
+  const [skipped, setSkipped] = useState(false);
+  const [tempPassword] = useState(() => generateTempPassword());
+  const portalUrl = `${window.location.origin}/portal`;
+  const handleSkip = () => { setSkipped(true); setTimeout(() => onClose(), 300); };
+  const getMessage = (type: MessageType) => buildWelcomeMessage({ customerName: project.customer.name, customerEmail: project.customer.email, projectName: project.name, companyName: company.name, companyAbn: company.abn, companyLicence: company.licence, companyEmail: company.email, companyPhone: company.phone, portalUrl, tempPassword, type });
+  const emailPreview = getMessage('copy');
+  const handleCopy = async () => { await navigator.clipboard.writeText(getMessage('copy')); setCopied(true); setTimeout(() => setCopied(false), 2000); };
+  const handleGmail = () => { const text = getMessage('gmail'); const subject = encodeURIComponent(`Welcome to ${company.name} — Your Project Portal`); window.open(`https://mail.google.com/mail/?view=cm&to=${project.customer.email}&su=${subject}&body=${encodeURIComponent(text)}`, '_blank'); };
+  const handleMailApp = () => { const text = getMessage('mail'); const subject = encodeURIComponent(`Welcome to ${company.name} — Your Project Portal`); window.location.href = `mailto:${project.customer.email}?subject=${subject}&body=${encodeURIComponent(text)}`; };
+  const handleWhatsApp = () => { const text = getMessage('whatsapp'); const phone = (project.customer.phone || '').replace(/\D/g, ''); window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank'); };
+  const handleSMS = () => { const text = getMessage('sms'); const phone = (project.customer.phone || '').replace(/\D/g, ''); window.open(`sms:${phone}?body=${encodeURIComponent(text)}`, '_blank'); };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-200 p-6"><h2 className="text-xl font-bold text-slate-900">Send Welcome Message</h2><button onClick={onClose} className="rounded-lg p-2 hover:bg-slate-100"><X className="h-5 w-5" /></button></div>
+        <div className="p-6 space-y-4">
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900"><p className="font-semibold">Customer Portal Access Included</p><p className="mt-1 text-blue-800">Your customer will receive their login details and can view & download their quotation, approve documents, and track project progress online.</p><p className="mt-2 font-medium text-blue-700">Temp password: {tempPassword}</p></div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4"><p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Email Preview</p><div className="max-h-80 overflow-y-auto rounded-lg bg-slate-50 p-4"><pre className="whitespace-pre-wrap break-words font-mono text-[12px] leading-6 text-slate-700">{emailPreview}</pre></div></div>
+          <div className="grid grid-cols-2 gap-3">
+            <button onClick={handleGmail} className="flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium hover:bg-slate-50"><Mail className="h-4 w-4" /> Gmail</button>
+            <button onClick={handleMailApp} className="flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium hover:bg-slate-50"><Mail className="h-4 w-4" /> Mail App</button>
+            <button onClick={handleCopy} className="flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium hover:bg-slate-50"><Copy className="h-4 w-4" /> {copied ? 'Copied!' : 'Copy Text'}</button>
+            <button onClick={handleWhatsApp} disabled={!project.customer.phone} className="flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"><MessageSquare className="h-4 w-4" /> WhatsApp</button>
+          </div>
+          <button onClick={handleSMS} disabled={!project.customer.phone} className="w-full flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"><Send className="h-4 w-4" /> SMS</button>
+          {skipped && (<div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-center text-sm text-emerald-700">✓ Skipped — you can send this later from the project dashboard</div>)}
+        </div>
+        <div className="border-t border-slate-200 p-6 pt-4"><button onClick={handleSkip} className="w-full rounded-lg bg-slate-100 hover:bg-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition-colors">Skip for Now</button></div>
+      </div>
+    </div>
+  );
+}
+
+function generateTempPassword(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let result = '';
+  for (let i = 0; i < 7; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
+  return `SB-${result}`;
+}
+
+
+===== FILE: src/components/Sidebar.tsx =====
+import { Building2, Plus, Trash2, Download, ChevronRight, FileText } from 'lucide-react';
+import { cn } from '../utils/helpers';
+import type { AppState } from '../types/appState';
+import type { AppActions } from '../app/useAppActions';
+
+type Props = { state: AppState; app?: AppActions };
+
+export function Sidebar({ state, app }: Props) {
+  const safeApp = app || ({} as AppActions);
+  const projects = state.projects;
+  const activeProject = projects.find(p => p.id === state.activeProjectId);
+  const activeCompany = state.companies.find(c => c.id === state.activeCompanyId) || state.companies[0];
+  const variations = state.activeProjectId ? (state.variations[state.activeProjectId] || []) : [];
+  const hasApproved = variations.some(v => v.documentType === 'quote' && v.status === 'approved');
+
+  return (
+    <div className="w-72 bg-slate-900 text-white flex flex-col h-screen shrink-0">
+      <div className="p-4 border-b border-slate-700">
+        <button onClick={safeApp.handleBackToWelcome || (() => undefined)} className="flex items-center gap-2 text-lg font-bold hover:text-blue-400 transition-colors">
+          {activeCompany?.logoUrl ? (
+            <img src={activeCompany.logoUrl} alt={activeCompany.name} className="h-8 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+          ) : (<Building2 className="w-6 h-6" />)}
+          <span>{activeCompany?.name || 'Segal Build'}</span>
+        </button>
+        <div className="mt-2 flex gap-1">
+          {state.companies.map(c => (
+            <button key={c.id} onClick={() => safeApp.handleSwitchCompany?.(c.id)}
+              className={cn('px-2 py-1 text-xs rounded transition-colors', state.activeCompanyId === c.id ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600')}>
+              {c.name}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="p-4 border-b border-slate-700">
+        <button onClick={safeApp.handleNewProject || (() => undefined)} className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-medium transition-colors">
+          <Plus className="w-4 h-4" /> New Project
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4">
+        <h3 className="text-xs uppercase text-slate-500 font-semibold mb-2">Projects ({projects.length})</h3>
+        {projects.length === 0 && <p className="text-slate-500 text-sm">No projects yet</p>}
+        {projects.map(p => (
+          <div key={p.id} onClick={() => safeApp.handleSelectProject?.(p.id)}
+            className={cn('flex items-center gap-2 p-2 rounded-lg cursor-pointer mb-1 transition-colors text-sm',
+              state.activeProjectId === p.id ? 'bg-blue-600/20 text-blue-400' : 'hover:bg-slate-800 text-slate-300')}>
+            <ChevronRight className="w-3 h-3 shrink-0" />
+            <span className="truncate flex-1">{p.name}</span>
+            <button onClick={e => { e.stopPropagation(); safeApp.handleExportProject?.(p.id); }} className="p-1 hover:text-white" title="Export"><Download className="w-3 h-3" /></button>
+            <button onClick={e => { e.stopPropagation(); safeApp.handleDeleteProject?.(p.id); }} className="p-1 hover:text-red-400" title="Delete"><Trash2 className="w-3 h-3" /></button>
+          </div>
+        ))}
+      </div>
+      {activeProject && (
+        <div className="p-4 border-t border-slate-700 space-y-2">
+          <button onClick={safeApp.handleNewQuote || (() => undefined)} className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-lg text-sm font-medium transition-colors">
+            <FileText className="w-4 h-4" /> New Quote
+          </button>
+          <button onClick={safeApp.handleNewVariation || (() => undefined)} className="w-full flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 text-white py-2 rounded-lg text-sm font-medium transition-colors">
+            <FileText className="w-4 h-4" /> {hasApproved ? 'New Variation' : 'New Variation (Link Quote)'}
+          </button>
+          {variations.length > 0 && (
+            <div className="mt-2">
+              <h3 className="text-xs uppercase text-slate-500 font-semibold mb-1">Documents</h3>
+              {variations.map(v => (
+                <button key={v.id} onClick={() => safeApp.handleSelectProject?.(activeProject.id)}
+                  className={cn('w-full text-left px-2 py-1 rounded text-xs mb-1',
+                    v.status === 'approved' ? 'bg-emerald-900/30 text-emerald-400' : 'bg-slate-800 text-slate-400')}>
+                  <span className="font-mono mr-1">{v.documentType === 'quote' ? 'QTE' : 'VAR'}</span>{v.title}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+===== FILE: src/components/SystemValidationPanel.tsx =====
+import { AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { runEstimatorValidation } from '../utils/validation';
+import { getRateAuditSummary } from '../utils/validation/rateAudit';
+
+export function SystemValidationPanel() {
+  const results = runEstimatorValidation();
+  const rateAudit = getRateAuditSummary();
+  const failed = results.filter((result) => !result.passed);
+
+  return (
+    <div className="mt-8 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Estimator System Validation</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Internal checks for quote maths, dimensions, trade chains, review flags and rate metadata.
+          </p>
+        </div>
+        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${failed.length ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+          {failed.length ? `${failed.length} check(s) need review` : 'All checks passing'}
+        </span>
+      </div>
+
+      <div className="mt-4 grid gap-2 md:grid-cols-2">
+        {results.map((result) => (
+          <div key={result.name} className="flex gap-2 rounded-lg bg-slate-50 p-3 text-sm">
+            {result.passed ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> : <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />}
+            <div>
+              <p className="font-medium text-slate-800">{result.name}</p>
+              <p className="mt-0.5 text-xs text-slate-500">{result.details}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        Rates: {rateAudit.totalTradeRates} trade rates and {rateAudit.totalUnitRates} BoQ rates. {rateAudit.unverifiedTradeRates + rateAudit.unverifiedUnitRates} are currently benchmark-unverified and must be checked before production quoting.
+      </div>
+    </div>
+  );
+}
+
+
+===== FILE: src/components/VariationBuilder.tsx =====
+import { ArrowLeft, ArrowRight, Check } from 'lucide-react';
+import type { Company, Project, Variation } from '../types/domain';
+import { BuilderHeader } from './variationBuilder/BuilderHeader';
+import { BuilderStepContent } from './variationBuilder/BuilderStepContent';
+import { moveStep } from './variationBuilder/builderShared';
+import { useVariationBuilderController } from './variationBuilder/useVariationBuilderController';
+
+type Props = {
+  project: Project;
+  company: Company;
+  documentType: 'quote' | 'variation';
+  approvedQuotes: Variation[];
+  initialVariation?: Variation;
+  onSave: (variation: Variation) => void;
+  onClose: () => void;
+};
+
+export function VariationBuilder(props: Props) {
+  const c = useVariationBuilderController({
+    project: props.project,
+    documentType: props.documentType,
+    existingQuotes: props.approvedQuotes,
+    companyOH: props.company.defaultOverheadPercent,
+    companyProfit: props.company.defaultProfitPercent,
+    initialVariation: props.initialVariation,
+    onSave: props.onSave,
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-2xl bg-white shadow-2xl">
+        <BuilderHeader documentType={props.documentType} step={c.step} baseline={c.baseline} baselineAdj={c.baselineAdj} onCancel={props.onClose} />
+        <main className="flex-1 overflow-y-auto p-6"><BuilderStepContent {...c.stepProps} /></main>
+        <footer className="flex shrink-0 justify-between border-t border-slate-200 p-4">
+          <button onClick={() => moveStep(c.step, c.setStep, -1)} disabled={c.step === 'baseline'} className="flex items-center gap-2 rounded-lg px-4 py-2 text-slate-600 hover:bg-slate-100 disabled:opacity-50"><ArrowLeft className="h-4 w-4" /> Back</button>
+          {c.step === 'review' ? (
+            <button onClick={c.handleSave} className="flex items-center gap-2 rounded-lg bg-emerald-600 px-6 py-2 font-medium text-white hover:bg-emerald-700"><Check className="h-4 w-4" /> {props.initialVariation ? 'Update' : 'Save'} {props.documentType === 'quote' ? 'Quote' : 'Variation'}</button>
+          ) : (
+            <button onClick={() => c.canNext && moveStep(c.step, c.setStep, 1)} disabled={!c.canNext} className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50">Next <ArrowRight className="h-4 w-4" /></button>
+          )}
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+
+===== FILE: src/components/WelcomeScreen.tsx =====
+import { Building2, FileText, Shield, TrendingUp, Zap, Camera } from 'lucide-react';
+import type { Company } from '../types/domain';
+import { SystemValidationPanel } from './SystemValidationPanel';
+
+type Props = {
+  company: Company;
+  onNewProject: () => void;
+};
+
+export function WelcomeScreen({ company, onNewProject }: Props) {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      <div className="max-w-4xl mx-auto px-6 py-16">
+        <div className="text-center mb-12">
+          {company.logoUrl ? (
+            <img src={company.logoUrl} alt={company.name} className="h-20 mx-auto mb-4 object-contain"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; const fallback = (e.target as HTMLImageElement).nextElementSibling; if (fallback) (fallback as HTMLElement).style.display = 'flex'; }} />
+          ) : null}
+          <div className={`inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4 ${company.logoUrl ? 'hidden' : ''}`}>
+            <Building2 className="w-8 h-8 text-white" />
+          </div>
+          <h1 className="text-4xl font-bold text-slate-900 mb-2">{company.name}</h1>
+          <p className="text-lg text-slate-500">Professional Construction Quoting & Variation Management</p>
+          <div className="mt-2 text-sm text-slate-400">ABN: {company.abn} | {company.phone}</div>
+        </div>
+        <div className="text-center mb-12">
+          <button onClick={onNewProject} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl text-lg font-semibold transition-colors shadow-lg shadow-blue-600/25">Create New Project</button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[
+            { icon: FileText, title: 'AI-Assisted Quotes', desc: 'Multi-scope quotes with 43 trade categories and Rawlinsons pricing' },
+            { icon: Zap, title: 'Scope Recognition', desc: 'AI-powered category detection from natural builder descriptions' },
+            { icon: TrendingUp, title: 'Smart Pricing', desc: 'OH + Profit + Contingency + GST pipeline with full transparency' },
+            { icon: Shield, title: 'Variation Management', desc: 'Track changes with full audit trail and customer approval workflow' },
+            { icon: Building2, title: 'Multi-Company', desc: 'Switch between companies with separate pricing defaults' },
+            { icon: Camera, title: 'Progress Hub', desc: 'Photo tracking, stage progress, and customer communication tools' },
+          ].map((f, i) => (
+            <div key={i} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+              <f.icon className="w-8 h-8 text-blue-600 mb-3" />
+              <h3 className="font-semibold text-slate-900 mb-1">{f.title}</h3>
+              <p className="text-sm text-slate-500">{f.desc}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-12 text-center text-sm text-slate-400">
+          <p>43 Trade Categories • Australian Construction Pricing • AI-Powered</p>
+        </div>
+        <SystemValidationPanel />
+      </div>
+    </div>
+  );
+}
+
+
+===== FILE: src/components/report/BuilderView.tsx =====
+import type { Company, Project, Variation } from '../../types/domain';
+import { formatCurrency } from '../../utils/helpers';
+import { calcScopesTotal } from '../../utils/pricing/engine';
+import { calculateQuote } from '../../utils/pricing/quoteCalculator';
+
+type Props = { variation: Variation; project: Project; company: Company; onUpdate: (variation: Variation) => void };
+
+export function BuilderView({ variation, project, company, onUpdate }: Props) {
+  const reviewFlags = variation.reviewFlags || [];
+
+  const updateAndReprice = (next: Variation) => {
+    const tradeCost = calcScopesTotal(next.scopes);
+    onUpdate({
+      ...next,
+      pricing: calculateQuote(
+        tradeCost,
+        next.pricing.overheadPercent,
+        next.pricing.profitPercent,
+        next.pricing.contingencyPercent,
+        next.pricing.preliminariesAmountExGst || 0,
+        next.pricing.preliminariesPercent || 0,
+      ),
+      updatedAt: new Date().toISOString(),
+    });
+  };
+
+  const updateStageCost = (scopeIndex: number, stageIndex: number, cost: number) => {
+    const scopes = variation.scopes.map((scope, sIndex) => {
+      if (sIndex !== scopeIndex) return scope;
+      return {
+        ...scope,
+        stages: scope.stages.map((stage, stIndex) => stIndex === stageIndex ? { ...stage, cost } : stage),
+      };
+    });
+    updateAndReprice({ ...variation, scopes });
+  };
+
+  const updateBoq = (scopeIndex: number, itemIndex: number, patch: { quantity?: number; rate?: number }) => {
+    const scopes = variation.scopes.map((scope, sIndex) => {
+      if (sIndex !== scopeIndex) return scope;
+      return {
+        ...scope,
+        parametricItems: (scope.parametricItems || []).map((item, iIndex) => iIndex === itemIndex ? { ...item, ...patch } : item),
+      };
+    });
+    updateAndReprice({ ...variation, scopes });
+  };
+
+  const updateMargin = (patch: Partial<Variation['pricing']>) => {
+    const nextPricing = { ...variation.pricing, ...patch };
+    onUpdate({
+      ...variation,
+      pricing: calculateQuote(calcScopesTotal(variation.scopes), nextPricing.overheadPercent, nextPricing.profitPercent, nextPricing.contingencyPercent, nextPricing.preliminariesAmountExGst || 0, nextPricing.preliminariesPercent || 0),
+      updatedAt: new Date().toISOString(),
+    });
+  };
+
+  return (
+    <div className="space-y-3 p-4">
+      <div className="text-sm text-slate-500">{company.name} · {project.name}</div>
+      <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-blue-700">Edit saved quote pricing</div>
+        <div className="grid grid-cols-3 gap-3">
+          <label className="text-xs text-slate-600">Overhead %<input type="number" value={variation.pricing.overheadPercent} onChange={(e) => updateMargin({ overheadPercent: Number(e.target.value) })} className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm" /></label>
+          <label className="text-xs text-slate-600">Profit %<input type="number" value={variation.pricing.profitPercent} onChange={(e) => updateMargin({ profitPercent: Number(e.target.value) })} className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm" /></label>
+          <label className="text-xs text-slate-600">Contingency %<input type="number" value={variation.pricing.contingencyPercent} onChange={(e) => updateMargin({ contingencyPercent: Number(e.target.value) })} className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm" /></label>
+        </div>
+      </div>
+      <div className="space-y-3">
+        {variation.scopes.map((scope, scopeIndex) => (
+          <div key={scope.id} className="rounded-lg border border-slate-200 p-3">
+            <div className="mb-2 flex justify-between text-sm font-semibold"><span>{scope.categoryLabel}</span><span>{formatCurrency(calcScopesTotal([scope]))}</span></div>
+            {scope.stages.map((stage, stageIndex) => (
+              <div key={`${stage.name}-${stageIndex}`} className="grid grid-cols-[1fr_100px_110px] items-center gap-2 border-t border-slate-100 py-2 text-sm">
+                <div><p className="font-medium text-slate-800">{stage.name}</p><p className="text-xs text-slate-500">{stage.description}</p></div>
+                <span className="text-xs text-slate-500">{stage.trade}</span>
+                <input type="number" value={stage.cost || 0} onChange={(e) => updateStageCost(scopeIndex, stageIndex, Number(e.target.value))} className="rounded border border-slate-300 px-2 py-1 text-right text-sm" />
+              </div>
+            ))}
+            {(scope.parametricItems || []).map((item, itemIndex) => (
+              <div key={item.id} className="grid grid-cols-[1fr_70px_90px_100px] items-center gap-2 border-t border-slate-100 py-2 text-sm">
+                <span className="font-medium text-slate-800">{item.label}</span>
+                <input type="number" value={item.quantity} onChange={(e) => updateBoq(scopeIndex, itemIndex, { quantity: Number(e.target.value) })} className="rounded border border-slate-300 px-2 py-1 text-right text-sm" />
+                <input type="number" value={item.rate} onChange={(e) => updateBoq(scopeIndex, itemIndex, { rate: Number(e.target.value) })} className="rounded border border-slate-300 px-2 py-1 text-right text-sm" />
+                <span className="text-right font-semibold">{formatCurrency(item.quantity * item.rate)}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+      <div className="rounded-lg border border-slate-200 p-3">
+        <div className="flex justify-between text-sm"><span>Trade Cost</span><span className="font-medium">{formatCurrency(variation.pricing.tradeCost)}</span></div>
+        <div className="flex justify-between text-sm"><span>Overhead ({variation.pricing.overheadPercent}%)</span><span>{formatCurrency(variation.pricing.overheadAmount)}</span></div>
+        <div className="flex justify-between text-sm"><span>Profit ({variation.pricing.profitPercent}%)</span><span>{formatCurrency(variation.pricing.profitAmount)}</span></div>
+        <div className="mt-2 flex justify-between border-t border-slate-200 pt-2 font-semibold"><span>Total incl GST</span><span>{formatCurrency(variation.pricing.total)}</span></div>
+      </div>
+      {reviewFlags.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <h4 className="text-sm font-semibold text-amber-900">Saved Estimator Review Flags</h4>
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">{reviewFlags.length}</span>
+          </div>
+          <div className="space-y-1.5">
+            {reviewFlags.slice(0, 6).map((flag) => (
+              <div key={flag.id} className="text-xs text-amber-900">
+                <span className="font-medium">{flag.severity.toUpperCase()}: {flag.title}</span>
+                {flag.categoryLabel && <span className="text-amber-700"> · {flag.categoryLabel}</span>}
+              </div>
+            ))}
+          </div>
+          {reviewFlags.length > 6 && <p className="mt-2 text-xs text-amber-700">Plus {reviewFlags.length - 6} more flag(s).</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+===== FILE: src/components/report/CustomerQuoteHeader.tsx =====
+import type { Company, Project, Variation } from '../../types/domain';
+import { formatCurrency } from '../../utils/helpers';
+
+type Props = {
+  company: Company;
+  project: Project;
+  variation: Variation;
+  documentLabel: string;
+};
+
+export function CustomerQuoteHeader({ company, project, variation, documentLabel }: Props) {
+  const quoteDate = new Date(variation.createdAt);
+  const expiryDate = new Date(quoteDate);
+  expiryDate.setDate(expiryDate.getDate() + 30);
+  const documentNumber = variation.variationNumber || `S${variation.id.slice(0, 5).toUpperCase()}`;
+
+  return (
+    <>
+      <div className="border-b-4 border-blue-700 px-8 py-7">
+        <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-700">{documentLabel}</p>
+            <h2 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">{project.name}</h2>
+            <p className="mt-1 text-sm text-slate-500">{project.address}</p>
+          </div>
+          <div className="text-left md:text-right">
+            <h3 className="text-xl font-bold text-slate-950">{company.name}</h3>
+            <p className="mt-1 text-xs text-slate-500">ABN {company.abn}</p>
+            {company.licence && <p className="text-xs text-slate-500">Licence {company.licence}</p>}
+            <p className="mt-2 text-sm text-slate-700">{company.phone}</p>
+            <p className="text-sm text-slate-700">{company.email}</p>
+          </div>
+        </div>
+      </div>
+      <div className="grid gap-px bg-slate-200 md:grid-cols-4">
+        <InfoBlock title="Prepared for" lines={[project.customer.name, project.customer.email, project.customer.phone].filter(Boolean)} />
+        <InfoBlock title="Document details" lines={[`Quotation # ${documentNumber}`, `Quotation Date: ${quoteDate.toLocaleDateString('en-AU')}`, `Expiration: ${expiryDate.toLocaleDateString('en-AU')}`]} />
+        <InfoBlock title="Salesperson" lines={['James Segal', company.phone, company.email]} />
+        <div className="bg-blue-50 px-8 py-5 md:text-right">
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Total incl. GST</p>
+          <p className="mt-1 text-3xl font-bold text-blue-900">{formatCurrency(variation.pricing.total)}</p>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function InfoBlock({ title, lines }: { title: string; lines: string[] }) {
+  return (
+    <div className="bg-white px-8 py-5">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</p>
+      <div className="mt-2 space-y-1 text-sm text-slate-800">
+        {lines.map((line) => <p key={line}>{line}</p>)}
+      </div>
+    </div>
+  );
+}
+
+===== FILE: src/components/report/CustomerQuoteSummary.tsx =====
+import type { Company, Variation } from '../../types/domain';
+import { formatCurrency } from '../../utils/helpers';
+
+export function InvestmentSummary({ variation }: { variation: Variation }) {
+  return (
+    <section className="border-b border-slate-200 px-8 py-6">
+      <h3 className="text-sm font-bold uppercase tracking-wide text-slate-900">Investment Summary</h3>
+      <div className="mt-4 overflow-hidden rounded-sm border border-slate-200">
+        <PriceRow label="Direct construction cost" value={variation.pricing.tradeCost} />
+        {Boolean(variation.pricing.preliminariesAmountExGst) && <PriceRow label={`Preliminaries (${variation.pricing.preliminariesPercent || 0}%)`} value={variation.pricing.preliminariesAmountExGst || 0} />}
+        <PriceRow label={`Builder overhead (${variation.pricing.overheadPercent}%)`} value={variation.pricing.overheadAmount} />
+        <PriceRow label={`Builder margin (${variation.pricing.profitPercent}%)`} value={variation.pricing.profitAmount} />
+        <PriceRow label={`Risk and contingency (${variation.pricing.contingencyPercent}%)`} value={variation.pricing.contingencyAmount} />
+        <PriceRow label="Subtotal excl. GST" value={variation.pricing.subtotalExclGst} strong />
+        <PriceRow label="GST" value={variation.pricing.gstAmount} />
+        <div className="flex items-center justify-between bg-blue-700 px-4 py-4 text-white">
+          <span className="text-sm font-bold uppercase tracking-wide">Total payable incl. GST</span>
+          <span className="text-2xl font-bold">{formatCurrency(variation.pricing.total)}</span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function PaymentTerms() {
+  return (
+    <section className="border-b border-slate-200 px-8 py-6">
+      <h3 className="text-sm font-bold uppercase tracking-wide text-slate-900">Payment Terms</h3>
+      <div className="mt-3 grid gap-3 text-sm text-slate-700 md:grid-cols-2">
+        <div>
+          <p className="font-semibold text-slate-900">Payment Due on Invoice</p>
+          <p className="mt-1">Account Name: Segal Build Pty. Ltd.</p>
+          <p>BSB: 083004</p>
+          <p>Account No.: 971236454</p>
+        </div>
+        <div className="rounded-sm bg-slate-50 p-3 text-xs leading-5 text-slate-600">
+          This invoice is issued pursuant to the Building and Construction Industry Security of Payment Act 2002 (VIC). Variations, latent conditions, design changes and client-selected PC item upgrades are quoted separately unless included above.
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function AcceptanceSection({ company }: { company: Company }) {
+  return (
+    <section className="bg-slate-950 px-8 py-6 text-white">
+      <div className="grid gap-6 md:grid-cols-[1fr_280px]">
+        <div>
+          <h3 className="text-lg font-semibold">Approval</h3>
+          <p className="mt-1 text-sm text-slate-300">Please review the scope, exclusions and total carefully before approval.</p>
+          <div className="mt-5 grid gap-4 text-sm md:grid-cols-2">
+            <div className="border-t border-slate-600 pt-2 text-slate-300">Client Signature</div>
+            <div className="border-t border-slate-600 pt-2 text-slate-300">Date</div>
+          </div>
+        </div>
+        <div className="text-sm text-slate-300 md:text-right">
+          <p>{company.name}</p>
+          <p>{company.phone} · {company.email}</p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PriceRow({ label, value, strong = false }: { label: string; value: number; strong?: boolean }) {
+  return (
+    <div className={`flex items-center justify-between border-b border-slate-200 px-4 py-3 text-sm ${strong ? 'bg-slate-50 font-semibold text-slate-950' : 'text-slate-700'}`}>
+      <span>{label}</span>
+      <span className="font-semibold text-slate-950">{formatCurrency(value)}</span>
+    </div>
+  );
+}
+
+===== FILE: src/components/report/CustomerView.tsx =====
+import type { Company, Project, Variation } from '../../types/domain';
+import { CustomerQuoteHeader } from './CustomerQuoteHeader';
+import { AcceptanceSection, InvestmentSummary, PaymentTerms } from './CustomerQuoteSummary';
+import { ProgressPhotoGrid, ScopeSections } from './CustomerViewParts';
+import { QuoteLineSchedule } from './QuoteLineSchedule';
+
+type Props = { variation: Variation; project: Project; company: Company };
+
+export function CustomerView({ variation, project, company }: Props) {
+  const photoUrls = (variation.progressPhotos || []).map((p) => p.url);
+  const documentLabel = variation.documentType === 'quote' ? 'Quotation' : 'Variation';
+
+  return (
+    <div className="bg-slate-100 p-4 md:p-6">
+      <div className="mx-auto max-w-4xl overflow-hidden rounded-sm bg-white shadow-sm ring-1 ring-slate-200">
+        <CustomerQuoteHeader company={company} project={project} variation={variation} documentLabel={documentLabel} />
+
+        {variation.description && (
+          <section className="border-b border-slate-200 px-8 py-6">
+            <h3 className="text-sm font-bold uppercase tracking-wide text-slate-900">Scope Overview</h3>
+            <p className="mt-3 whitespace-pre-line text-sm leading-7 text-slate-700">{variation.description}</p>
+          </section>
+        )}
+
+        <section className="border-b border-slate-200 px-8 py-6">
+          <div className="mb-4 flex items-end justify-between gap-4">
+            <div>
+              <h3 className="text-sm font-bold uppercase tracking-wide text-slate-900">Detailed Scope of Works</h3>
+              <p className="mt-1 text-sm text-slate-500">The works below form the basis of this {documentLabel.toLowerCase()}.</p>
+            </div>
+          </div>
+          <ScopeSections scopes={variation.scopes} />
+        </section>
+
+        <section className="border-b border-slate-200 px-8 py-6">
+          <h3 className="text-sm font-bold uppercase tracking-wide text-slate-900">Line Schedule</h3>
+          <p className="mt-1 text-sm text-slate-500">Construction stages and priced items forming this quote.</p>
+          <div className="mt-4">
+            <QuoteLineSchedule scopes={variation.scopes} />
+          </div>
+        </section>
+
+        <InvestmentSummary variation={variation} />
+
+        <ProgressPhotoGrid urls={photoUrls} />
+        <PaymentTerms />
+        <AcceptanceSection company={company} />
+      </div>
+    </div>
+  );
+}
+
+
+===== FILE: src/components/report/CustomerViewParts.tsx =====
+import type { QuoteScope } from '../../types/domain';
+import { formatCurrency } from '../../utils/helpers';
+import { calcScopeTotal } from '../../utils/pricing/engine';
+
+export function ScopeSections({ scopes }: { scopes: QuoteScope[] }) {
+  return (
+    <div className="space-y-5">
+      {scopes.map((scope, index) => {
+        const total = calcScopeTotal(scope);
+        return (
+          <article key={scope.id} className="overflow-hidden rounded-sm border border-slate-200 bg-white">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3">
+              <div className="flex items-center gap-3">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-700 text-xs font-bold text-white">{index + 1}</span>
+                <div>
+                  <h4 className="font-semibold text-slate-950">{scope.categoryLabel}</h4>
+                  <p className="text-xs text-slate-500">Trade scope</p>
+                </div>
+              </div>
+              {total > 0 && <span className="shrink-0 text-sm font-semibold text-slate-900">{formatCurrency(total)}</span>}
+            </div>
+            <div className="space-y-4 px-4 py-4">
+              <p className="whitespace-pre-line text-sm leading-7 text-slate-700">{scope.description || 'Scope details to follow.'}</p>
+              <ScopeList title="Included" items={scope.inclusions.map((item) => item.text)} tone="included" />
+              <ScopeList title="Excluded" items={scope.exclusions.map((item) => item.text)} tone="excluded" />
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+function ScopeList({ title, items, tone }: { title: string; items: string[]; tone: 'included' | 'excluded' }) {
+  if (items.length === 0) return null;
+  const marker = tone === 'included' ? '✓' : '–';
+  const color = tone === 'included' ? 'text-emerald-700' : 'text-slate-500';
+  return (
+    <div>
+      <h5 className="text-xs font-bold uppercase tracking-wide text-slate-500">{title}</h5>
+      <ul className="mt-2 grid gap-1.5 text-sm text-slate-700 md:grid-cols-2">
+        {items.map((item) => (
+          <li key={item} className="flex gap-2">
+            <span className={`font-semibold ${color}`}>{marker}</span>
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export function ProgressPhotoGrid({ urls }: { urls: string[] }) {
+  if (urls.length === 0) return null;
+  return (
+    <section className="border-b border-slate-200 px-8 py-6">
+      <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-900">Progress Photos</h3>
+      <div className="grid grid-cols-2 gap-3">
+      {urls.map((url, i) => (
+        <img key={i} src={url} alt={`Progress ${i + 1}`} className="h-36 w-full rounded-sm object-cover" />
+      ))}
+      </div>
+    </section>
+  );
+}
+
+
+===== FILE: src/components/report/ProgressHub.tsx =====
+import { useState } from 'react';
+import type { Variation } from '../../types/domain';
+import { PhotoCapture } from '../PhotoCapture';
+
+type Props = { variation: Variation; onUpdate: (variation: Variation) => void };
+
+export function ProgressHub({ variation, onUpdate }: Props) {
+  const [updateText, setUpdateText] = useState('');
+
+  const handleAddPhoto = (url: string | undefined) => {
+    if (!url) return;
+    const nextPhotos = [
+      ...(variation.progressPhotos || []),
+      { id: crypto.randomUUID(), url, caption: 'Progress', stage: 'General', date: new Date().toISOString() },
+    ];
+    onUpdate({ ...variation, progressPhotos: nextPhotos, updatedAt: new Date().toISOString() });
+  };
+
+  const handleAddUpdate = () => {
+    if (!updateText.trim()) return;
+    const now = new Date().toISOString();
+    onUpdate({
+      ...variation,
+      updatedAt: now,
+      progressUpdates: [...(variation.progressUpdates || []), { text: updateText.trim(), timestamp: now }],
+    });
+    setUpdateText('');
+  };
+
+  return (
+    <div className="space-y-4 p-4">
+      <PhotoCapture label="Add Progress Photo" value={undefined} onChange={handleAddPhoto} />
+      <div className="flex gap-2">
+        <input value={updateText} onChange={(e) => setUpdateText(e.target.value)} placeholder="Add progress update..." className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+        <button onClick={handleAddUpdate} disabled={!updateText.trim()} className="rounded-lg bg-blue-600 px-3 py-2 text-sm text-white disabled:opacity-50">Add</button>
+      </div>
+    </div>
+  );
+}
+
+
+===== FILE: src/components/report/QuoteLineSchedule.tsx =====
+import type { JobStage, ParametricItem, QuoteScope } from '../../types/domain';
+import { formatCurrency } from '../../utils/helpers';
+
+type QuoteLine = {
+  description: string;
+  detail?: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  amount: number;
+};
+
+export function QuoteLineSchedule({ scopes }: { scopes: QuoteScope[] }) {
+  const lines = scopes.flatMap(buildQuoteLines);
+  if (lines.length === 0) return null;
+
+  return (
+    <div className="overflow-hidden rounded-sm border border-slate-200">
+      <div className="grid grid-cols-[1fr_90px_90px_80px_110px] bg-slate-900 px-4 py-3 text-xs font-bold uppercase tracking-wide text-white">
+        <span>Description</span>
+        <span className="text-right">Quantity</span>
+        <span className="text-right">Unit Price</span>
+        <span className="text-center">GST</span>
+        <span className="text-right">Amount</span>
+      </div>
+      {lines.map((line, index) => <QuoteLineRow key={`${line.description}-${index}`} line={line} />)}
+    </div>
+  );
+}
+
+function QuoteLineRow({ line }: { line: QuoteLine }) {
+  return (
+    <div className="grid grid-cols-[1fr_90px_90px_80px_110px] items-start gap-2 border-t border-slate-200 px-4 py-3 text-sm">
+      <div>
+        <p className="font-semibold text-slate-900">{line.description}</p>
+        {line.detail && <p className="mt-1 text-xs leading-5 text-slate-500">{line.detail}</p>}
+      </div>
+      <span className="text-right text-slate-700">{formatQuantity(line.quantity)} {line.unit}</span>
+      <span className="text-right text-slate-700">{formatCurrency(line.unitPrice)}</span>
+      <span className="text-center text-xs font-medium text-slate-500">GST Sales</span>
+      <span className="text-right font-semibold text-slate-900">{formatCurrency(line.amount)}</span>
+    </div>
+  );
+}
+
+function buildQuoteLines(scope: QuoteScope): QuoteLine[] {
+  const stageLines = scope.stages.map((stage: JobStage) => ({
+    description: `${scope.categoryLabel} - ${stage.name}`,
+    detail: stage.description,
+    quantity: 1,
+    unit: 'Units',
+    unitPrice: stage.cost || 0,
+    amount: stage.cost || 0,
+  }));
+
+  const boqLines = (scope.parametricItems || []).map((item: ParametricItem) => ({
+    description: `${scope.categoryLabel} - ${item.label}`,
+    detail: item.notes,
+    quantity: item.quantity || 0,
+    unit: item.unit,
+    unitPrice: item.rate || 0,
+    amount: (item.quantity || 0) * (item.rate || 0),
+  }));
+
+  return [...stageLines, ...boqLines];
+}
+
+function formatQuantity(value: number) {
+  if (Number.isInteger(value)) return value.toFixed(2);
+  return value.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+===== FILE: src/components/report/ReportSendModal.tsx =====
+import { useState } from 'react';
+import { X, Mail, Copy, MessageSquare, Send, Check } from 'lucide-react';
+import type { Company, Project, Variation } from '../../types/domain';
+import { formatCurrency } from '../../utils/helpers';
+import { calcScopeTotal } from '../../utils/pricing/engine';
+import { buildEmailSignature } from '../../utils/company/signature';
+
+type Props = { project: Project; variation: Variation; company: Company; onClose: () => void; onMarkSent: () => void };
+
+export function ReportSendModal({ project, variation, company, onClose, onMarkSent }: Props) {
+  const [copied, setCopied] = useState(false);
+  const docLabel = variation.documentType === 'quote' ? 'Quote' : 'Variation';
+  const subject = `${docLabel} — ${project.name} — ${company.name}`;
+  const scopeLines = variation.scopes.flatMap((scope, scopeIndex) => {
+    const lines = [
+      `${scopeIndex + 1}. ${scope.categoryLabel} — ${formatCurrency(calcScopeTotal(scope))}`,
+    ];
+
+    if (scope.description) lines.push(`   Scope: ${scope.description.replace(/\s+/g, ' ').trim()}`);
+
+    if (scope.stages.length > 0) {
+      lines.push('   Stages:');
+      lines.push(...scope.stages.map((stage) => `   - ${stage.name} (${stage.trade}): ${stage.description || 'Works as described'} — ${formatCurrency(stage.cost)}`));
+    }
+
+    if ((scope.parametricItems || []).length > 0) {
+      lines.push('   BoQ items:');
+      lines.push(...(scope.parametricItems || []).map((item) => `   - ${item.label}: ${item.quantity} ${item.unit} x ${formatCurrency(item.rate)} — ${formatCurrency(item.quantity * item.rate)}`));
+    }
+
+    if (scope.inclusions.length > 0) {
+      lines.push('   Included:');
+      lines.push(...scope.inclusions.slice(0, 8).map((item) => `   - ${item.text}`));
+    }
+
+    if (scope.exclusions.length > 0) {
+      lines.push('   Excluded:');
+      lines.push(...scope.exclusions.slice(0, 8).map((item) => `   - ${item.text}`));
+    }
+
+    lines.push('');
+    return lines;
+  });
+
+  const bodyLines = [
+    `Dear ${project.customer.name},`, '',
+    `Please find your ${docLabel.toLowerCase()} for ${project.name}.`, '',
+    `Project address: ${project.address}`, '',
+    'QUOTE SUMMARY',
+    `Direct construction cost: ${formatCurrency(variation.pricing.tradeCost)}`,
+    `Builder overhead (${variation.pricing.overheadPercent}%): ${formatCurrency(variation.pricing.overheadAmount)}`,
+    `Builder margin (${variation.pricing.profitPercent}%): ${formatCurrency(variation.pricing.profitAmount)}`,
+    `Contingency (${variation.pricing.contingencyPercent}%): ${formatCurrency(variation.pricing.contingencyAmount)}`,
+    `GST: ${formatCurrency(variation.pricing.gstAmount)}`,
+    `Total payable (incl. GST): ${formatCurrency(variation.pricing.total)}`, '',
+    'SCOPE OF WORKS',
+    ...scopeLines,
+    'Please review the above scope, inclusions, exclusions and total carefully. Let us know if you would like any changes before approval.', '',
+    ...buildEmailSignature(company),
+  ];
+  const bodyText = bodyLines.join('\n');
+  const handleCopy = async () => { await navigator.clipboard.writeText(bodyText); setCopied(true); setTimeout(() => setCopied(false), 2000); };
+  const handleGmail = () => { window.open(`https://mail.google.com/mail/?view=cm&to=${project.customer.email}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyText)}`, '_blank'); };
+  const handleMailApp = () => { window.location.href = `mailto:${project.customer.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyText)}`; };
+  const handleWhatsApp = () => { const phone = (project.customer.phone || '').replace(/\D/g, ''); window.open(`https://wa.me/${phone}?text=${encodeURIComponent(`${subject}\n\n${bodyText}`)}`, '_blank'); };
+  const handleSMS = () => { const phone = (project.customer.phone || '').replace(/\D/g, ''); window.open(`sms:${phone}?body=${encodeURIComponent(`${docLabel} for ${project.name}: ${formatCurrency(variation.pricing.total)} incl GST. Please review. — ${company.name}`)}`, '_blank'); };
+  const handleSendAndMark = (sendFn: () => void) => { sendFn(); onMarkSent(); };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-200 p-6">
+          <div><h2 className="text-xl font-bold text-slate-900">Send {docLabel}</h2><p className="text-sm text-slate-500 mt-1">To: {project.customer.name} ({project.customer.email})</p></div>
+          <button onClick={onClose} className="rounded-lg p-2 hover:bg-slate-100"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Message Preview</p>
+            <div className="max-h-52 overflow-y-auto rounded-lg bg-slate-50 p-4"><pre className="whitespace-pre-wrap break-words font-mono text-[12px] leading-6 text-slate-700">{bodyText}</pre></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <button onClick={() => handleSendAndMark(handleGmail)} className="flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium hover:bg-slate-50"><Mail className="h-4 w-4" /> Gmail</button>
+            <button onClick={() => handleSendAndMark(handleMailApp)} className="flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium hover:bg-slate-50"><Mail className="h-4 w-4" /> Mail App</button>
+            <button onClick={handleCopy} className="flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium hover:bg-slate-50">{copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}{copied ? 'Copied!' : 'Copy Text'}</button>
+            <button onClick={() => handleSendAndMark(handleWhatsApp)} disabled={!project.customer.phone} className="flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"><MessageSquare className="h-4 w-4" /> WhatsApp</button>
+          </div>
+          <button onClick={() => handleSendAndMark(handleSMS)} disabled={!project.customer.phone} className="w-full flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"><Send className="h-4 w-4" /> SMS</button>
+        </div>
+        <div className="border-t border-slate-200 p-6 pt-4"><button onClick={onClose} className="w-full rounded-lg bg-slate-100 hover:bg-slate-200 px-4 py-3 text-sm font-medium text-slate-700">Close</button></div>
+      </div>
+    </div>
+  );
+}
+
+
+===== FILE: src/components/report/VariationReport.tsx =====
+import type { Project, Variation, Company } from '../../types/domain';
+import { formatCurrency, generateId } from '../../utils/helpers';
+import { useState } from 'react';
+import { Send, Download, Pencil } from 'lucide-react';
+import { generateQuotePDF } from '../../utils/pdfGenerator';
+import { VariationBuilder } from '../VariationBuilder';
+import { BuilderView } from './BuilderView';
+import { CustomerView } from './CustomerView';
+import { ProgressHub } from './ProgressHub';
+import { ReportSendModal } from './ReportSendModal';
+
+type Props = { variation: Variation; project: Project; company: Company; onUpdate: (variation: Variation) => void };
+
+export function VariationReport({ variation, project, company, onUpdate }: Props) {
+  const [tab, setTab] = useState<'builder' | 'customer' | 'progress'>('builder');
+  const [showSendModal, setShowSendModal] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [pdfError, setPdfError] = useState('');
+  const [pdfUrl, setPdfUrl] = useState('');
+
+  const handleDownloadPDF = () => {
+    setPdfError('');
+    setPdfUrl('');
+
+    try {
+      const doc = generateQuotePDF(variation, project, company);
+      const filename = `${variation.documentType === 'quote' ? 'Quote' : 'Variation'}-${project.name.replace(/\s+/g, '-')}.pdf`;
+      void doc.save(filename, { returnPromise: true });
+      const blob = doc.output('blob');
+      const url = URL.createObjectURL(blob);
+      setPdfUrl(url);
+    } catch (error) {
+      console.error('PDF generation failed', error);
+      setPdfError('PDF could not be generated. Please check scope pricing and try again.');
+    }
+  };
+  const handleMarkSent = () => {
+    if (variation.status === 'draft') {
+      const now = new Date().toISOString();
+      onUpdate({ ...variation, status: 'sent', updatedAt: now, changeLog: [...variation.changeLog, { id: generateId(), action: 'sent', timestamp: now, user: 'Builder', details: `${variation.documentType === 'quote' ? 'Quote' : 'Variation'} sent to ${project.customer.name}` }] });
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2"><span className="font-mono text-xs text-slate-500">{variation.documentType === 'quote' ? 'QTE' : 'VAR'}</span><h3 className="font-semibold text-slate-900">{variation.title}</h3></div>
+          <p className="text-xs text-slate-400 mt-1">Created: {new Date(variation.createdAt).toLocaleDateString('en-AU')}</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button onClick={() => setEditing(true)} className="flex items-center gap-1.5 rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"><Pencil className="h-3.5 w-3.5" /> Edit</button>
+          <button onClick={handleDownloadPDF} className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"><Download className="h-3.5 w-3.5" /> PDF</button>
+          <button onClick={() => setShowSendModal(true)} className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"><Send className="h-3.5 w-3.5" /> Send</button>
+          <span className={`px-2 py-1 text-xs font-medium rounded-full ${variation.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : variation.status === 'rejected' ? 'bg-red-100 text-red-700' : variation.status === 'sent' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>{variation.status}</span>
+          <span className="text-sm font-bold text-slate-900">{formatCurrency(variation.pricing.total)}</span>
+        </div>
+      </div>
+      {variation.description && (<div className="px-4 py-3 text-sm text-slate-600 bg-slate-50"><p className="whitespace-pre-line">{variation.description}</p></div>)}
+      {pdfError && <div className="px-4 py-2 text-sm text-red-700 bg-red-50 border-b border-red-100">{pdfError}</div>}
+      {pdfUrl && <div className="px-4 py-2 text-sm text-emerald-700 bg-emerald-50 border-b border-emerald-100">PDF prepared. If it did not download, <a href={pdfUrl} target="_blank" rel="noreferrer" className="font-semibold underline">open it here</a>.</div>}
+      <div className="border-b border-slate-100 px-4 py-2">
+        <div className="flex gap-2 text-sm">
+          <button onClick={() => setTab('builder')} className={tab === 'builder' ? 'font-semibold text-blue-700' : 'text-slate-500'}>Builder</button>
+          <button onClick={() => setTab('customer')} className={tab === 'customer' ? 'font-semibold text-blue-700' : 'text-slate-500'}>Customer</button>
+          <button onClick={() => setTab('progress')} className={tab === 'progress' ? 'font-semibold text-blue-700' : 'text-slate-500'}>Progress</button>
+        </div>
+      </div>
+      {tab === 'builder' && <BuilderView variation={variation} project={project} company={company} onUpdate={onUpdate} />}
+      {tab === 'customer' && <CustomerView variation={variation} project={project} company={company} />}
+      {tab === 'progress' && <ProgressHub variation={variation} onUpdate={onUpdate} />}
+      {editing && (
+        <VariationBuilder
+          project={project}
+          company={company}
+          documentType={variation.documentType}
+          approvedQuotes={variation.documentType === 'quote' && variation.status === 'approved' ? [variation] : []}
+          initialVariation={variation}
+          onSave={(next) => { onUpdate(next); setEditing(false); }}
+          onClose={() => setEditing(false)}
+        />
+      )}
+      {showSendModal && <ReportSendModal project={project} variation={variation} company={company} onClose={() => setShowSendModal(false)} onMarkSent={handleMarkSent} />}
+    </div>
+  );
+}
+
+
+===== FILE: src/components/variationBuilder/AddedScopesPanel.tsx =====
+import { Trash2 } from 'lucide-react';
+import type { QuoteScope } from '../../types/domain';
+import { isManualTemplateCategory } from './scopePricing';
+
+type Props = { scopes: QuoteScope[]; onRemoveScope: (categoryId: string) => void };
+
+export function AddedScopesPanel({ scopes, onRemoveScope }: Props) {
+  if (scopes.length === 0) return null;
+  return (
+    <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+      <h4 className="mb-3 text-sm font-semibold text-emerald-900">Added Scopes ({scopes.length})</h4>
+      <div className="space-y-2">
+        {scopes.map((scope) => {
+          const isTemplate = isManualTemplateCategory(scope.categoryId);
+          return (
+            <div key={scope.id} className="flex items-center justify-between rounded-lg bg-white border border-emerald-200 px-3 py-2">
+              <div>
+                <div className="flex items-center gap-2"><span className="font-medium text-sm text-slate-900">{scope.categoryLabel}</span>{isTemplate && (<span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">Template only</span>)}</div>
+                {scope.description && (<p className="text-xs text-slate-500 truncate max-w-md">{scope.description}</p>)}
+                {isTemplate && (<p className="text-[11px] text-amber-700">No pricing by default — use trades for costed work.</p>)}
+              </div>
+              <button onClick={() => onRemoveScope(scope.categoryId)} className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors" aria-label={`Remove ${scope.categoryLabel}`}><Trash2 className="h-4 w-4" /></button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
