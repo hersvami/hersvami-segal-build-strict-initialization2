@@ -123,11 +123,24 @@ export type QuoteScope = {
   photos?: string[];
 };
 
+// NEW: Module Types for dynamic forms
+export type ModuleType = 'generic' | 'decking' | 'bathroom' | 'kitchen' | 'laundry' | 'grannyFlat' | 'extension' | 'landscaping' | 'pool';
+
 export type ProjectBaseline = {
+  moduleType: ModuleType; // NEW: Tracks what we are building
   totalAreaM2: number;
   storeys: 'single' | 'double' | 'multi';
   siteAccess: 'easy' | 'moderate' | 'difficult';
   ceilingHeightM: number;
+  
+  // NEW: Deck/External Specific Fields
+  deckLengthM?: number;
+  deckWidthM?: number;
+  deckHeightFromGroundM?: number;
+  deckMaterial?: 'merbau' | 'treated_pine' | 'composite' | 'other';
+  stumpCount?: number;
+  soilType?: 'soft' | 'medium' | 'hard' | 'rock';
+  
   notes?: string;
 };
 

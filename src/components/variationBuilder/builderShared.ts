@@ -1,5 +1,6 @@
 import type { ProjectBaseline } from '../../types/domain';
 import { getAllCategories } from '../../utils/pricing/scopeRecogniser';
+import type { ProjectBaseline } from '../../types/domain';
 
 export type Step = 'baseline' | 'scope' | 'details' | 'pricing' | 'review';
 
@@ -10,7 +11,14 @@ export const STEP_LABELS: Record<Step, string> = {
 };
 
 export function getDefaultBaseline(): ProjectBaseline {
-  return { totalAreaM2: 0, storeys: 'single', siteAccess: 'easy', ceilingHeightM: 2.4, notes: '' };
+  return {
+    moduleType: 'generic', // NEW: Default to generic building
+    totalAreaM2: 0,
+    storeys: 'single',
+    siteAccess: 'easy',
+    ceilingHeightM: 2.4,
+    notes: '',
+  };
 }
 
 export function groupCategories() {

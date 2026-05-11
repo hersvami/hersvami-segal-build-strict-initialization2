@@ -1,11 +1,15 @@
-import { Building2, Plus, Trash2, Download, ChevronRight, FileText } from 'lucide-react';
+import { Building2, Plus, Trash2, Download, ChevronRight, FileText, Settings } from 'lucide-react';
 import { cn } from '../utils/helpers';
 import type { AppState } from '../types/appState';
 import type { AppActions } from '../app/useAppActions';
 
-type Props = { state: AppState; app?: AppActions };
+type Props = { 
+  state: AppState; 
+  app?: AppActions;
+  onOpenSettings?: () => void;
+};
 
-export function Sidebar({ state, app }: Props) {
+export function Sidebar({ state, app, onOpenSettings }: Props) {
   const safeApp = app || ({} as AppActions);
   const projects = state.projects;
   const activeProject = projects.find(p => p.id === state.activeProjectId);
@@ -31,6 +35,17 @@ export function Sidebar({ state, app }: Props) {
           ))}
         </div>
       </div>
+      
+      {/* Settings Button */}
+      <div className="p-4 border-b border-slate-700">
+        <button 
+          onClick={onOpenSettings} 
+          className="w-full flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-white py-2 rounded-lg font-medium transition-colors"
+        >
+          <Settings className="w-4 h-4" /> Settings
+        </button>
+      </div>
+      
       <div className="p-4 border-b border-slate-700">
         <button onClick={safeApp.handleNewProject || (() => undefined)} className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-medium transition-colors">
           <Plus className="w-4 h-4" /> New Project

@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { ExternalQuoteModal } from '../components/ExternalQuoteModal';
 import { ProjectForm } from '../components/ProjectForm';
 import { SendWelcomeEmailModal } from '../components/SendWelcomeEmailModal';
 import { Sidebar } from '../components/Sidebar';
 import { VariationBuilder } from '../components/VariationBuilder';
+import { BunningsSettingsModal } from '../components/BunningsSettingsModal';
 import type { AppState } from '../types/appState';
 import type { AppActions } from './useAppActions';
 import { MainContent } from './MainContent';
@@ -10,9 +12,11 @@ import { MainContent } from './MainContent';
 type Props = { state: AppState; app: AppActions };
 
 export function AppLayout({ state, app }: Props) {
+  const [showBunningsSettings, setShowBunningsSettings] = useState(false);
+
   return (
     <div className="flex h-screen bg-slate-50">
-      <Sidebar state={state} app={app} />
+      <Sidebar state={state} app={app} onOpenSettings={() => setShowBunningsSettings(true)} />
       <MainContent state={state} app={app} />
 
       {state.uiState.showProjectForm && (
@@ -47,6 +51,11 @@ export function AppLayout({ state, app }: Props) {
           onSubmit={app.handleSaveExternalBaseline}
         />
       )}
+
+      <BunningsSettingsModal 
+        isOpen={showBunningsSettings} 
+        onClose={() => setShowBunningsSettings(false)} 
+      />
     </div>
   );
 }

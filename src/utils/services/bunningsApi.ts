@@ -1,5 +1,3 @@
-// src/utils/services/bunningsApi.ts
-
 export interface BunningsProduct {
   id: string;
   name: string;
@@ -15,31 +13,67 @@ export interface BunningsCredentials {
   consumerSecret: string;
 }
 
-const BASE_URL = 'https://api.bunnings.com.au'; // Production base
-const SANDBOX_BASE_URL = 'https://api.sandbox.bunnings.com.au'; // Sandbox base
+// ⚠️ DEFAULT SANDBOX CREDENTIALS (Pre-loaded for convenience)
+// These are used if no custom keys are saved in LocalStorage.
+// WARNING: Never commit LIVE/Production keys to code. Sandbox keys are safe for testing.
+const DEFAULT_SANDBOX_KEY = "XYckoKSGjpKZCDfYUTta7WM1HGY1HgUabgF2i8pKDwAFVPOb";
+const DEFAULT_SANDBOX_SECRET = "J96x0zopLcAIdPURAd1gp4VDOTG6NYa75hTr31fI8A1z0Lch1nc9cAgEOevscb8A";
 
-// Note: Direct browser calls to Bunnings API often fail due to CORS.
-// In a production app, you would route these requests through a serverless function (e.g., Netlify/Vercel).
-// For this implementation, we will try direct fetch, but fallback to search URLs if CORS blocks it.
+const BASE_URL = 'https://api.bunnings.com.au'; 
+const SANDBOX_BASE_URL = 'https://api.sandbox.bunnings.com.au';
+
+/**
+ * Retrieves credentials from LocalStorage, or falls back to defaults if not set.
+ */
+export function getBunningsCredentials(): BunningsCredentials {
+  const storedKey = localStorage.getItem('bunnings_consumer_key');
+  const storedSecret = localStorage.getItem('bunnings_consumer_secret');
+  
+  return {
+    consumerKey: storedKey || DEFAULT_SANDBOX_KEY,
+    consumerSecret: storedSecret || DEFAULT_SANDBOX_SECRET,
+  };
+}
+
+export function isUsingSandbox(): boolean {
+  const stored = localStorage.getItem('bunnings_use_sandbox');
+  // Default to true if not set
+  return stored === null ? true : stored === 'true';
+}
 
 export async function searchBunningsProducts(
   query: string, 
-  credentials: BunningsCredentials,
-  useSandbox: boolean = true
+  useSandbox: boolean = isUsingSandbox()
 ): Promise<BunningsProduct[]> {
   const baseUrl = useSandbox ? SANDBOX_BASE_URL : BASE_URL;
+  const credentials = getBunningsCredentials();
   
-  // Construct the authorization header
-  // Note: Bunnings OAuth usually requires a token exchange first. 
-  // If you have a simple API Key setup, adjust headers accordingly.
-  // Assuming Consumer Key/Secret needs to be exchanged for a Bearer Token first.
-  // Since we can't do secure token exchange in client-side code easily without exposing secrets,
-  // we will primarily rely on generating Search Links for the user.
+  console.log(`[Bunnings API] Searching for: "${query}" in ${useSandbox ? 'Sandbox' : 'Live'}`);
   
-  console.warn("Direct API calls from browser may be blocked by CORS or require server-side token exchange.");
-  
-  // Fallback: Return empty array but trigger the "Open Search" logic in UI
-  return [];
+  // NOTE: Direct browser calls often fail due to CORS. 
+  // The UI component will handle the fallback to opening a search tab.
+  try {
+    // Attempting fetch (likely to fail in browser without proxy due to CORS/OAuth)
+    const response = await fetch(`${baseUrl}/catalogue/v1/products/search?q=${encodeURIComponent(query)}`, {
+      headers: {
+        'Accept': 'application/json',
+        // OAuth 1.0a signature would be required here for real calls
+        // For now, we rely on the UI fallback mechanism
+      }
+    });
+    
+    if (!response.ok) throw new Error('API Request Failed');
+    const data = await response.json();
+    return mapApiResponse(data);
+  } catch (error) {
+    console.warn('[Bunnings API] Direct fetch failed (CORS/Auth). Falling back to search link.', error);
+    return []; // UI will handle opening the link
+  }
+}
+
+function mapApiResponse(data: any): BunningsProduct[] {
+  // Mock mapping for sandbox responses
+  return []; 
 }
 
 export function getBunningsSearchUrl(query: string): string {
@@ -47,7 +81,7 @@ export function getBunningsSearchUrl(query: string): string {
 }
 
 export function getBunningsProductUrl(sku: string): string {
-  return `https://www.bunnings.com.au/${sku}`; // Simplified pattern
+  return `https://www.bunnings.com.au/${sku}`; 
 }
 
 // Mapping app categories to Bunnings search terms
